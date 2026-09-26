@@ -102,9 +102,9 @@ export const CheckTab: React.FC = () => {
   const getUsageCount = (): number => {
     try {
       const stored = localStorage.getItem('cb_usage_count_v1');
-      return stored !== null ? parseInt(stored, 10) : 14;
+      return stored !== null ? parseInt(stored, 10) : 0;
     } catch {
-      return 14;
+      return 0;
     }
   };
 
@@ -165,31 +165,6 @@ export const CheckTab: React.FC = () => {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  // Demo helpers for testing without real files
-  const handleUseMockScreenshot = () => {
-    setUploadedImage({
-      name: 'checkout_deal_offer.png',
-      url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80',
-    });
-  };
-
-  const handleUseMockPhoto = () => {
-    setCapturedPhoto({
-      name: 'store_shelf_price_tag.jpg',
-      url: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&q=80',
-    });
-  };
-
-  const handleUseMockLink = (url: string) => {
-    setUrlValue(url);
-  };
-
-  const handleUseMockText = () => {
-    setTextValue(
-      'Exclusive 50% OFF Flash Sale: $69.00 today only! Free shipping. Note: "Returns subject to a 20% restocking fee and return postage paid by buyer."'
-    );
   };
 
   // Validate current input and return specific error if invalid
@@ -400,12 +375,7 @@ export const CheckTab: React.FC = () => {
       setActiveError(null);
       return;
     }
-    if (activeError === 'empty_pasted_text') {
-      handleUseMockText();
-      setFlowStep('input');
-      setActiveError(null);
-      return;
-    }
+
     if (activeError === 'timeout') {
       handleUserCancel();
       setSelectedMode('paste');
@@ -414,10 +384,6 @@ export const CheckTab: React.FC = () => {
       return;
     }
     if (activeError === 'usage_limit') {
-      // Reset demo limit
-      try {
-        localStorage.setItem('cb_usage_count_v1', '0');
-      } catch (e) {}
       setFlowStep('home');
       setActiveError(null);
       return;
@@ -449,17 +415,16 @@ export const CheckTab: React.FC = () => {
 
   // Transition from Analysis completion to Results
   const handleContinueToResults = () => {
-    if (currentCheck) {
+    if (currentCheck && analysisResult) {
       try {
         const stored = localStorage.getItem('cb_check_history_v1');
         const existing = stored ? JSON.parse(stored) : [];
-        const finalVerdict: ResultVerdict = analysisResult
-          ? analysisResult.status === 'LOOKS_REASONABLE'
+        const finalVerdict: ResultVerdict =
+          analysisResult.status === 'LOOKS_REASONABLE'
             ? 'reasonable'
             : analysisResult.status === 'DONT_PAY_YET'
             ? 'dont_pay'
-            : 'pause'
-          : 'reasonable';
+            : 'pause';
 
         const newItem = {
           id: `hist-${Date.now()}`,
@@ -469,6 +434,7 @@ export const CheckTab: React.FC = () => {
           source: currentCheck.source,
           inputContent: currentCheck.value,
           previewUrl: currentCheck.previewUrl,
+          analysisData: analysisResult,
         };
         localStorage.setItem(
           'cb_check_history_v1',
@@ -761,17 +727,6 @@ export const CheckTab: React.FC = () => {
                         Supports PNG, JPG, WebP
                       </span>
                     </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[11px] text-slate-400">Testing on desktop?</span>
-                      <button
-                        type="button"
-                        onClick={handleUseMockScreenshot}
-                        className="text-[11px] font-bold text-slate-800 hover:text-emerald-700 underline underline-offset-2"
-                      >
-                        Use sample screenshot
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -837,24 +792,6 @@ export const CheckTab: React.FC = () => {
                     </button>
                   )}
                 </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-                  <span className="text-slate-400 font-medium">Quick examples:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleUseMockLink('https://amazon.com/dp/B09X49P5R1')}
-                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
-                  >
-                    Amazon Headset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUseMockLink('https://shop.tiktok.com/view/product/889218321')}
-                    className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors"
-                  >
-                    TikTok Shop Deal
-                  </button>
-                </div>
               </div>
             )}
           </div>
@@ -908,14 +845,7 @@ export const CheckTab: React.FC = () => {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all resize-none"
                 />
 
-                <div className="flex items-center justify-between text-[11px]">
-                  <button
-                    type="button"
-                    onClick={handleUseMockText}
-                    className="text-slate-700 hover:text-emerald-700 font-bold underline underline-offset-2"
-                  >
-                    Paste sample discount text
-                  </button>
+                <div className="flex items-center justify-end text-[11px]">
                   {textValue && (
                     <button
                       type="button"
@@ -1019,17 +949,6 @@ export const CheckTab: React.FC = () => {
                       <Camera className="w-4 h-4" />
                       <span>Open Camera & Take Photo</span>
                     </button>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[11px] text-slate-400">Camera not available?</span>
-                      <button
-                        type="button"
-                        onClick={handleUseMockPhoto}
-                        className="text-[11px] font-bold text-slate-800 hover:text-emerald-700 underline underline-offset-2"
-                      >
-                        Simulate photo snap
-                      </button>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1209,16 +1128,16 @@ export const CheckTab: React.FC = () => {
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Evaluation Simulation
+            Evaluation in progress
           </span>
           <span className="text-xs text-slate-400 font-medium">
-            {isAnalysisComplete ? '100%' : `${Math.round(((analysisStepIndex + 1) / ANALYSIS_STEPS.length) * 90)}%`}
+            {isAnalysisComplete && analysisResult ? '100%' : `${Math.round(((analysisStepIndex + 1) / ANALYSIS_STEPS.length) * 90)}%`}
           </span>
         </div>
 
         {/* Main Analysis Card */}
         <section className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-6">
-          {!isAnalysisComplete ? (
+          {!(isAnalysisComplete && analysisResult) ? (
             <>
               {/* Animated Radar/Pulse Graphic */}
               <div className="flex flex-col items-center justify-center py-4 space-y-3">

@@ -26,21 +26,14 @@ import { SourceType } from './CheckTab';
 
 export const YouTab: React.FC = () => {
   // Usage quota state (Synced with localStorage cb_usage_count_v1)
-  const [usageCount, setUsageCount] = useState<number>(() => {
+  const [usageCount] = useState<number>(() => {
     try {
       const stored = localStorage.getItem('cb_usage_count_v1');
-      return stored !== null ? parseInt(stored, 10) : 14;
+      return stored !== null ? parseInt(stored, 10) : 0;
     } catch {
-      return 14;
+      return 0;
     }
   });
-
-  const handleSetUsage = (count: number) => {
-    try {
-      localStorage.setItem('cb_usage_count_v1', String(count));
-    } catch {}
-    setUsageCount(count);
-  };
 
   // Appearance state (Light, Dark, System)
   const [appearanceTheme, setAppearanceTheme] = useState<'light' | 'dark' | 'system'>('light');
@@ -55,29 +48,13 @@ export const YouTab: React.FC = () => {
   // Local storage clear status
   const [dataCleared, setDataCleared] = useState(false);
 
-  // Saved checks (sample bookmarks stored locally)
   const [savedChecks, setSavedChecks] = useState<Array<{
     id: string;
     title: string;
     date: string;
     verdict: ResultVerdict;
     source: SourceType;
-  }>>([
-    {
-      id: 'save-1',
-      title: 'Sony WH-1000XM5 Wireless Headphones',
-      date: 'Sep 25, 2026',
-      verdict: 'reasonable',
-      source: 'Google',
-    },
-    {
-      id: 'save-2',
-      title: 'Viral Ultrasonic Sonic-Clean Jewelry Machine',
-      date: 'Sep 24, 2026',
-      verdict: 'pause',
-      source: 'TikTok',
-    },
-  ]);
+  }>>([]);
 
   const handleRemoveSaved = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -165,12 +142,12 @@ export const YouTab: React.FC = () => {
                 Usage this month
               </span>
               <span className="text-xs text-slate-500 block truncate">
-                14 evaluations completed · 3 pauses taken
+                {usageCount} {usageCount === 1 ? 'evaluation' : 'evaluations'} completed
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-semibold text-slate-400">14 / 50</span>
+            <span className="text-xs font-semibold text-slate-400">{usageCount} / 50</span>
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </button>
@@ -401,64 +378,14 @@ export const YouTab: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Checks Completed
-                      </span>
-                      <span className="text-2xl font-black text-slate-900 block mt-1">{usageCount}</span>
-                      <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
-                        Across 4 platforms
-                      </span>
-                    </div>
-
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Impulse Pauses Taken
-                      </span>
-                      <span className="text-2xl font-black text-amber-600 block mt-1">3</span>
-                      <span className="text-[11px] text-slate-500 font-semibold block mt-0.5">
-                        24-hr cooling off
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
-                    <span className="font-bold text-slate-900 block">Estimated Savings Impact</span>
-                    <p className="leading-relaxed">
-                      Taking a pause prevented an estimated $184 in potential regret purchases and overseas return shipping costs this month.
-                    </p>
-                  </div>
-
-                  {/* Testing Helper for Edge State verification */}
-                  <div className="p-3 rounded-2xl bg-slate-100/70 border border-slate-200 text-xs space-y-2">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Edge State Tester
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Checks Completed
                     </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleSetUsage(50)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition-colors ${
-                          usageCount >= 50
-                            ? 'bg-purple-900 text-white'
-                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        Set to 50 (Limit Reached)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetUsage(14)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition-colors ${
-                          usageCount === 14
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        Reset to 14
-                      </button>
-                    </div>
+                    <span className="text-2xl font-black text-slate-900 block mt-1">{usageCount}</span>
+                    <span className="text-[11px] text-slate-500 font-semibold block mt-0.5">
+                      On this device
+                    </span>
                   </div>
                 </div>
               )}

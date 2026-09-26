@@ -14,7 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckResultsView, ResultVerdict } from '../CheckResultsView';
+import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { SourceType } from './CheckTab';
 
 export interface HistoryItem {
@@ -25,44 +25,13 @@ export interface HistoryItem {
   source: SourceType | null;
   inputContent?: string;
   previewUrl?: string;
+  analysisData?: StructuredAnalysisData;
 }
 
 const STORAGE_KEY = 'cb_check_history_v1';
 
-const DEFAULT_HISTORY: HistoryItem[] = [
-  {
-    id: 'hist-1',
-    name: 'Sony WH-1000XM5 Wireless Noise-Cancelling Headphones',
-    date: 'Today, 2:40 PM',
-    verdict: 'reasonable',
-    source: 'Google',
-    inputContent: 'https://store.sony.com/headphones/wh1000xm5',
-  },
-  {
-    id: 'hist-2',
-    name: 'Viral Ultrasonic Sonic-Clean Jewelry Machine (65% off)',
-    date: 'Yesterday, 6:15 PM',
-    verdict: 'pause',
-    source: 'TikTok',
-    inputContent: 'Flash Deal: Ultrasonic cleaner $24.99 with free shipping. Return policy: Buyer pays return shipping to international warehouse.',
-  },
-  {
-    id: 'hist-3',
-    name: 'Flash Deal: Designer Leather Travel Tote & Wallet Set',
-    date: 'Sep 23, 2026',
-    verdict: 'dont_pay',
-    source: 'Instagram',
-    inputContent: 'Exclusive 85% OFF Closing Sale! $39.99 today only. Note: "All sales strictly final."',
-  },
-  {
-    id: 'hist-4',
-    name: 'Smart Titanium Fitness Ring Pro (AI Recommended)',
-    date: 'Sep 20, 2026',
-    verdict: 'pause',
-    source: 'AI',
-    inputContent: 'Recommended by conversational AI shopping assistant.',
-  },
-];
+// IDs of the sample entries shipped in earlier prototype builds; purged from existing local storage.
+const LEGACY_SAMPLE_IDS = new Set(['hist-1', 'hist-2', 'hist-3', 'hist-4']);
 
 interface HistoryTabProps {
   onNavigateToCheck?: () => void;
@@ -75,12 +44,14 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item: HistoryItem) => !LEGACY_SAMPLE_IDS.has(item.id));
+        }
       }
     } catch (e) {
       // Storage unavailable or disabled
     }
-    return DEFAULT_HISTORY;
+    return [];
   });
 
   // Active selected item for reopening result
@@ -108,11 +79,6 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
   const handleClearAllConfirm = () => {
     setItems([]);
     setConfirmClearModalOpen(false);
-  };
-
-  // Restore sample items for convenience
-  const handleRestoreSamples = () => {
-    setItems(DEFAULT_HISTORY);
   };
 
   // Helper for result state presentation
@@ -166,6 +132,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
           sourceCategory={activeItem.source}
           inputContent={activeItem.inputContent || activeItem.name}
           previewUrl={activeItem.previewUrl}
+          analysisData={activeItem.analysisData ?? null}
           onStartNewCheck={() => {
             setActiveItem(null);
             if (onNavigateToCheck) onNavigateToCheck();
@@ -313,14 +280,6 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
             >
               <span>Start Your First Check</span>
               <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRestoreSamples}
-              className="w-full h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs transition-colors"
-            >
-              Restore sample history
             </button>
           </div>
         </section>

@@ -67,174 +67,6 @@ export interface StructuredAnalysisData {
   isFallback?: boolean;
 }
 
-const PRESET_RESULTS: Record<ResultVerdict, ResultModel> = {
-  reasonable: {
-    verdict: 'reasonable',
-    verdictTitle: 'LOOKS REASONABLE',
-    emoji: '🟢',
-    confidence: 'High',
-    explanation:
-      'This purchase shows clear signs of an authentic seller, realistic pricing, transparent return rights, and no hidden subscription fees.',
-    price: {
-      title: 'PRICE',
-      statusText: 'Fair Market Pricing',
-      isPositive: true,
-      notes: [
-        'Matches recent 90-day baseline across major authorized retailers.',
-        'No deceptive added-on fees at final checkout screen.',
-        'Advertised markdown reflects a verified promotional sale, not an inflated fake discount.',
-      ],
-    },
-    seller: {
-      title: 'SELLER',
-      statusText: 'Verified & Established',
-      isPositive: true,
-      notes: [
-        'Domain registered over 4 years ago with public business registration.',
-        'Direct customer service email and active telephone support provided.',
-        'Positive track record across independent buyer communities.',
-      ],
-    },
-    terms: {
-      title: 'TERMS',
-      statusText: 'Standard Return Protections',
-      isPositive: true,
-      notes: [
-        '30-day money-back guarantee with prepaid return shipping labels.',
-        'Zero restocking fees or handling charges on returns.',
-        'Full 1-year manufacturer warranty honored directly.',
-      ],
-    },
-    redFlags: {
-      title: 'RED FLAGS',
-      statusText: 'No Suspicious Patterns',
-      isPositive: true,
-      notes: [
-        'No artificial urgency timers or fabricated stock countdowns.',
-        'No forced recurring auto-ship or monthly membership traps.',
-        'Original product photography matching verified customer unboxings.',
-      ],
-    },
-    couldNotVerify: [
-      'Carrier delivery speed and handling delays in your specific zip code.',
-      'Exact inventory stock counts at third-party regional warehouses.',
-      'Long-term hardware durability without long-term hands-on usage.',
-    ],
-  },
-
-  pause: {
-    verdict: 'pause',
-    verdictTitle: 'PAUSE & CHECK',
-    emoji: '🟡',
-    confidence: 'Moderate',
-    explanation:
-      'Take a quick pause before paying. While the item appears legitimate, the seller uses an inflated discount markup and charges steep customer-paid return fees.',
-    price: {
-      title: 'PRICE',
-      statusText: 'Manufactured Urgency',
-      isPositive: false,
-      isWarning: true,
-      notes: [
-        'The advertised "75% off" is based on an artificially inflated original MSRP.',
-        'Product is regularly offered at or below this exact price throughout the year.',
-        'Shipping is free only if order total crosses a secondary threshold.',
-      ],
-    },
-    seller: {
-      title: 'SELLER',
-      statusText: 'Young Merchant Account',
-      isPositive: false,
-      isWarning: true,
-      notes: [
-        'Storefront created 7 months ago; limited historical ratings.',
-        'Fulfillment relies on external dropship routing with variable lead times.',
-        'Customer support is ticket-only with reported 48-72h response times.',
-      ],
-    },
-    terms: {
-      title: 'TERMS',
-      statusText: 'Friction on Returns',
-      isPositive: false,
-      isWarning: true,
-      notes: [
-        'Buyer is responsible for return postage to an overseas distribution hub.',
-        '15% restocking fee applied if original packaging is opened.',
-        'Store credit offered by default instead of original payment method refund.',
-      ],
-    },
-    redFlags: {
-      title: 'RED FLAGS',
-      statusText: 'Urgency Prompts Detected',
-      isPositive: false,
-      isWarning: true,
-      notes: [
-        'Countdown timer resets automatically on page reload.',
-        'Customer reviews on page appear curated with 100% 5-star distribution.',
-        'Warranty details are vague regarding coverage for water/drop damage.',
-      ],
-    },
-    couldNotVerify: [
-      'True shipping transit times from international fulfillment facilities.',
-      'Quality of internal components compared to brand-name alternatives.',
-      'Whether the seller reliably honors store credit without expiration.',
-    ],
-  },
-
-  dont_pay: {
-    verdict: 'dont_pay',
-    verdictTitle: 'DON’T PAY YET',
-    emoji: '🔴',
-    confidence: 'High',
-    explanation:
-      'We recommend holding your payment. The offer shows multiple red flags typical of copycat storefronts, including all-sales-final terms and recycled imagery.',
-    price: {
-      title: 'PRICE',
-      statusText: 'Deceptive Price Signals',
-      isPositive: false,
-      notes: [
-        'Unrealistic 85% discount on high-demand premium electronics.',
-        'Hidden mandatory handling fee added at checkout page.',
-        'Same unbranded generic model sold on wholesale sites for one-fifth the price.',
-      ],
-    },
-    seller: {
-      title: 'SELLER',
-      statusText: 'High Risk / Unverified',
-      isPositive: false,
-      notes: [
-        'Domain registered only 14 days ago using hidden proxy contact information.',
-        'Physical address listed resolves to a shared commercial mailbox.',
-        'Support email uses a disposable, free domain provider.',
-      ],
-    },
-    terms: {
-      title: 'TERMS',
-      statusText: 'No Refund Protections',
-      isPositive: false,
-      notes: [
-        'Buried in fine print: "All promotional sales are final with zero refunds."',
-        'No replacement policy for items damaged during transit.',
-        'Disclaimers waive all liability for non-delivery after carrier pickup.',
-      ],
-    },
-    redFlags: {
-      title: 'RED FLAGS',
-      statusText: 'Multiple Severe Warnings',
-      isPositive: false,
-      notes: [
-        'Stolen product photos copied from an established Kickstarter campaign.',
-        'Fabricated buyer notification popups ("David from Austin just bought 2").',
-        'Social ad comments disabled to suppress buyer complaint reports.',
-      ],
-    },
-    couldNotVerify: [
-      'Whether physical inventory actually exists in any domestic warehouse.',
-      'True identity or operational jurisdiction of site owners.',
-      'Whether submitted credit card information is processed securely.',
-    ],
-  },
-};
-
 interface CheckResultsViewProps {
   initialVerdict?: ResultVerdict;
   sourceCategory: SourceType | null;
@@ -254,21 +86,15 @@ export const CheckResultsView: React.FC<CheckResultsViewProps> = ({
   onStartNewCheck,
   onBackToInput,
 }) => {
-  const mappedAnalysisVerdict: ResultVerdict | undefined = analysisData
+  const activeVerdict: ResultVerdict = analysisData
     ? analysisData.status === 'LOOKS_REASONABLE'
       ? 'reasonable'
       : analysisData.status === 'DONT_PAY_YET'
       ? 'dont_pay'
       : 'pause'
-    : undefined;
+    : initialVerdict;
 
-  // Active verdict state with interactive switcher to preview all 3 required states
-  const [activeVerdict, setActiveVerdict] = useState<ResultVerdict>(
-    mappedAnalysisVerdict || initialVerdict
-  );
-
-  // Active source category (Supports AI Check mode)
-  const [currentSource, setCurrentSource] = useState<SourceType | null>(sourceCategory || 'AI');
+  const currentSource: SourceType | null = sourceCategory;
 
   // Signature Explain Feature modal state
   const [explainModalOpen, setExplainModalOpen] = useState(false);
@@ -294,36 +120,72 @@ export const CheckResultsView: React.FC<CheckResultsViewProps> = ({
     }));
   };
 
-  const isUsingRealAnalysis = !!analysisData && activeVerdict === mappedAnalysisVerdict;
-
-  const currentData: ResultModel = isUsingRealAnalysis && analysisData
-    ? {
-        verdict: activeVerdict,
-        verdictTitle:
-          activeVerdict === 'reasonable'
-            ? 'LOOKS REASONABLE'
-            : activeVerdict === 'dont_pay'
-            ? 'DON’T PAY YET'
-            : 'PAUSE & CHECK',
-        emoji: activeVerdict === 'reasonable' ? '🟢' : activeVerdict === 'dont_pay' ? '🔴' : '🟡',
-        confidence:
-          analysisData.confidence === 'HIGH'
-            ? 'High'
-            : analysisData.confidence === 'LIMITED'
-            ? 'Limited'
-            : 'Moderate',
-        explanation: analysisData.summary,
-        price: analysisData.price_findings,
-        seller: analysisData.seller_findings,
-        terms: analysisData.terms_findings,
-        redFlags: analysisData.red_flags,
-        couldNotVerify: analysisData.unverified_items || PRESET_RESULTS[activeVerdict].couldNotVerify,
-      }
-    : PRESET_RESULTS[activeVerdict];
+  const isUsingRealAnalysis = !!analysisData;
 
   // Share Check state (PROMPT 15)
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [hasCopiedSummary, setHasCopiedSummary] = useState(false);
+
+  if (!analysisData) {
+    return (
+      <div className="space-y-6 pb-12 animate-in fade-in duration-200">
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            onClick={onBackToInput}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back</span>
+          </button>
+        </div>
+        <section className="rounded-3xl border border-slate-200/90 bg-white p-6 sm:p-7 shadow-[0_8px_30px_rgba(0,0,0,0.04)] space-y-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-600 mx-auto flex items-center justify-center">
+            <Info className="w-7 h-7" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-lg font-extrabold tracking-tight text-slate-900">
+              Full results aren&apos;t available for this check
+            </h1>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+              We only show findings that came from a completed analysis. Run a new check to get a fresh, real evaluation of this offer.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onStartNewCheck}
+            className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Run a New Check</span>
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  const currentData: ResultModel = {
+    verdict: activeVerdict,
+    verdictTitle:
+      activeVerdict === 'reasonable'
+        ? 'LOOKS REASONABLE'
+        : activeVerdict === 'dont_pay'
+        ? 'DON’T PAY YET'
+        : 'PAUSE & CHECK',
+    emoji: activeVerdict === 'reasonable' ? '🟢' : activeVerdict === 'dont_pay' ? '🔴' : '🟡',
+    confidence:
+      analysisData.confidence === 'HIGH'
+        ? 'High'
+        : analysisData.confidence === 'LIMITED'
+        ? 'Limited'
+        : 'Moderate',
+    explanation: analysisData.summary,
+    price: analysisData.price_findings,
+    seller: analysisData.seller_findings,
+    terms: analysisData.terms_findings,
+    redFlags: analysisData.red_flags,
+    couldNotVerify: analysisData.unverified_items || [],
+  };
 
   // Generate concise, privacy-safe summary containing the 5 required elements
   const generateConciseSummary = (): string => {
@@ -450,10 +312,8 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
             <span>Share</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setCurrentSource(currentSource === 'AI' ? (sourceCategory && sourceCategory !== 'AI' ? sourceCategory : 'TikTok') : 'AI')}
-            className={`text-xs font-semibold px-3 py-1 rounded-full border transition-all flex items-center gap-1.5 active:scale-95 ${
+          <div
+            className={`text-xs font-semibold px-3 py-1 rounded-full border flex items-center gap-1.5 ${
               currentSource === 'AI'
                 ? 'bg-indigo-950 text-indigo-200 border-indigo-500/40 shadow-xs'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200/80'
@@ -470,51 +330,8 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
                 <span>{currentSource || 'Website'}</span>
               )}
             </strong>
-            <span className="text-[10px] text-slate-400 font-normal ml-0.5">
-              {currentSource === 'AI' ? '✕' : '⇄ Test AI'}
-            </span>
-          </button>
+          </div>
         </div>
-      </div>
-
-      {/* Interactive Prototype State Switcher (Demonstrating all 3 required states) */}
-      <div className="p-1.5 bg-slate-100/90 rounded-2xl flex items-center gap-1 text-xs">
-        <button
-          type="button"
-          onClick={() => setActiveVerdict('reasonable')}
-          className={`flex-1 py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 ${
-            activeVerdict === 'reasonable'
-              ? 'bg-white text-emerald-950 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🟢</span>
-          <span className="truncate">Reasonable</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveVerdict('pause')}
-          className={`flex-1 py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 ${
-            activeVerdict === 'pause'
-              ? 'bg-white text-amber-950 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🟡</span>
-          <span className="truncate">Pause</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveVerdict('dont_pay')}
-          className={`flex-1 py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 ${
-            activeVerdict === 'dont_pay'
-              ? 'bg-white text-rose-950 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🔴</span>
-          <span className="truncate">Don't Pay</span>
-        </button>
       </div>
 
       {/* ---------------------------------------------------------------------
@@ -806,9 +623,7 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
           <span className="flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 shrink-0 text-slate-400" />
             <span>
-              {isUsingRealAnalysis
-                ? 'Grounded analysis via Gemini 3.8 Flash · Evaluates provided offer without fabricated claims'
-                : 'Automated decision model baseline · Simulated findings are not guaranteed endorsements'}
+              Grounded analysis via Gemini 3.8 Flash · Evaluates provided offer without fabricated claims
             </span>
           </span>
           {isUsingRealAnalysis && (
