@@ -1,0 +1,7 @@
+{
+  "name": "Check Before You Buy",
+  "description": "A smart consumer companion to evaluate online purchases, spot impulse buys, and verify deals before paying.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
