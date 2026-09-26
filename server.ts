@@ -13,15 +13,41 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: '25mb' }));
 
-// Initialize GoogleGenAI SDK on the server with recommended User-Agent header
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY?.trim();
+
+if (!GEMINI_API_KEY) {
+  console.warn('GEMINI_API_KEY is not set. /api/analyze will return an error until it is configured.');
+}
+
+// Only create the client when a key exists; without one the SDK falls back to Google Cloud default credentials.
+const ai = GEMINI_API_KEY
+  ? new GoogleGenAI({
+      apiKey: GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    })
+  : null;
+
+const VALID_STATUSES = ['LOOKS_REASONABLE', 'PAUSE_AND_CHECK', 'DONT_PAY_YET'];
+const VALID_CONFIDENCE = ['HIGH', 'MODERATE', 'LIMITED'];
+
+function isValidAnalysis(result: any): boolean {
+  if (!result || typeof result !== 'object') return false;
+  if (result.unreadable_screenshot === true || result.insufficient_information === true) return true;
+  return (
+    VALID_STATUSES.includes(result.status) &&
+    VALID_CONFIDENCE.includes(result.confidence) &&
+    typeof result.summary === 'string' &&
+    ['price_findings', 'seller_findings', 'terms_findings', 'red_flags', 'next_steps'].every(
+      (key) => result[key] && typeof result[key] === 'object',
+    ) &&
+    Array.isArray(result.unverified_items) &&
+    typeof result.seller_question === 'string'
+  );
+}
 
 // System instruction enforcing the critical trust rules and consumer-advocate methodology
 const SYSTEM_INSTRUCTION = `You are the core analytical engine for "Check Before You Buy", a 2026 consumer purchase verification tool.
@@ -52,6 +78,14 @@ confidence must be one of: "HIGH", "MODERATE", "LIMITED"`;
 
 // POST /api/analyze endpoint
 app.post('/api/analyze', async (req, res) => {
+  if (!ai) {
+    return res.status(503).json({
+      error: 'AI analysis is not configured on the server.',
+      code: 'AI_NOT_CONFIGURED',
+      message: 'The verification engine is unavailable. No fabricated analysis will be generated.',
+    });
+  }
+
   try {
     const { inputType, content, imageBase64, mimeType, sourceCategory } = req.body;
 
@@ -230,6 +264,9 @@ Adhere strictly to all trust rules. Never invent facts. State what could not be 
     }
 
     const structuredResult = JSON.parse(responseText.trim());
+    if (!isValidAnalysis(structuredResult)) {
+      throw new Error('Gemini response did not match the expected analysis format.');
+    }
     return res.json(structuredResult);
   } catch (error: any) {
     console.error('Gemini Analysis Error:', error);
