@@ -23,17 +23,13 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckResultsView, ResultVerdict } from '../CheckResultsView';
 import { SourceType } from './CheckTab';
+import { getMonthlyUsage } from '../../lib/usage';
+
+const HISTORY_STORAGE_KEY = 'cb_check_history_v1';
+const LEGACY_SAMPLE_IDS = new Set(['hist-1', 'hist-2', 'hist-3', 'hist-4']);
 
 export const YouTab: React.FC = () => {
-  // Usage quota state (Synced with localStorage cb_usage_count_v1)
-  const [usageCount] = useState<number>(() => {
-    try {
-      const stored = localStorage.getItem('cb_usage_count_v1');
-      return stored !== null ? parseInt(stored, 10) : 0;
-    } catch {
-      return 0;
-    }
-  });
+  const [usageCount] = useState<number>(getMonthlyUsage);
 
   // Appearance state (Light, Dark, System)
   const [appearanceTheme, setAppearanceTheme] = useState<'light' | 'dark' | 'system'>('light');
@@ -48,22 +44,52 @@ export const YouTab: React.FC = () => {
   // Local storage clear status
   const [dataCleared, setDataCleared] = useState(false);
 
+  // Saved checks are the completed checks persisted by the Check flow (same store as History).
   const [savedChecks, setSavedChecks] = useState<Array<{
     id: string;
     title: string;
     date: string;
     verdict: ResultVerdict;
-    source: SourceType;
-  }>>([]);
+    source: SourceType | null;
+  }>>(() => {
+    try {
+      const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((item: any) => item && typeof item.id === 'string' && !LEGACY_SAMPLE_IDS.has(item.id))
+        .map((item: any) => ({
+          id: item.id,
+          title: item.name,
+          date: item.date,
+          verdict: item.verdict,
+          source: item.source ?? null,
+        }));
+    } catch {
+      return [];
+    }
+  });
 
   const handleRemoveSaved = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSavedChecks((prev) => prev.filter((item) => item.id !== id));
+    try {
+      const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      if (Array.isArray(parsed)) {
+        localStorage.setItem(
+          HISTORY_STORAGE_KEY,
+          JSON.stringify(parsed.filter((item: any) => item?.id !== id)),
+        );
+      }
+    } catch {
+      // Storage unavailable
+    }
   };
 
   const handleClearAllData = () => {
     try {
-      localStorage.removeItem('cb_check_history_v1');
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
     } catch (e) {
       // Ignore
     }
@@ -167,7 +193,7 @@ export const YouTab: React.FC = () => {
                 Saved checks
               </span>
               <span className="text-xs text-slate-500 block truncate">
-                Bookmarked offers for delayed decision-making
+                Completed checks saved on this device
               </span>
             </div>
           </div>
@@ -409,14 +435,15 @@ export const YouTab: React.FC = () => {
                               {item.title}
                             </span>
                             <span className="text-[11px] text-slate-400">
-                              {item.date} · Found on {item.source}
+                              {item.date} · Found on {item.source || 'Not specified'}
                             </span>
                           </div>
                           <button
                             type="button"
                             onClick={(e) => handleRemoveSaved(item.id, e)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                            title="Remove bookmark"
+                            title="Remove saved check"
+                            aria-label={`Remove ${item.title} from saved checks`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -425,7 +452,7 @@ export const YouTab: React.FC = () => {
                     </div>
                   ) : (
                     <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
-                      No bookmarked checks saved yet.
+                      No checks saved yet.
                     </div>
                   )}
                 </div>

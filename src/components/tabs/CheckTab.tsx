@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { ErrorStateCard, ErrorStateType } from '../ErrorStateCard';
+import { getMonthlyUsage, incrementMonthlyUsage, formatSavedDate } from '../../lib/usage';
 
 export const SOURCES = [
   { id: 'AI', label: 'AI', emoji: '🤖' },
@@ -99,23 +100,8 @@ export const CheckTab: React.FC = () => {
   };
 
   // Helper to read and update monthly usage quota
-  const getUsageCount = (): number => {
-    try {
-      const stored = localStorage.getItem('cb_usage_count_v1');
-      return stored !== null ? parseInt(stored, 10) : 0;
-    } catch {
-      return 0;
-    }
-  };
-
-  const incrementUsageCount = () => {
-    try {
-      const current = getUsageCount();
-      localStorage.setItem('cb_usage_count_v1', String(current + 1));
-    } catch {
-      // Ignore
-    }
-  };
+  const getUsageCount = getMonthlyUsage;
+  const incrementUsageCount = incrementMonthlyUsage;
 
   // Validate URL format
   const isValidUrl = (url: string): boolean => {
@@ -328,7 +314,9 @@ export const CheckTab: React.FC = () => {
         console.error('Gemini analysis error:', err);
 
         // Friendly plain-English categorization
-        if (!navigator.onLine || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        if (err.message === 'INVALID_URL') {
+          setActiveError('invalid_url');
+        } else if (!navigator.onLine || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
           setActiveError('network_failure');
         } else {
           setActiveError('ai_failure');
@@ -429,7 +417,7 @@ export const CheckTab: React.FC = () => {
         const newItem = {
           id: `hist-${Date.now()}`,
           name: currentCheck.fileName || currentCheck.value || 'Evaluated Online Offer',
-          date: 'Just now',
+          date: formatSavedDate(new Date()),
           verdict: finalVerdict,
           source: currentCheck.source,
           inputContent: currentCheck.value,
