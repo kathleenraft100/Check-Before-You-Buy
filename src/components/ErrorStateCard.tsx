@@ -80,7 +80,7 @@ export const ErrorStateCard: React.FC<ErrorStateCardProps> = ({
           title: 'Text field is empty',
           message: 'Please paste the ad caption, product description, or fine-print terms to evaluate.',
           primaryBtn: primaryActionLabel || 'Paste Offer Text',
-          secondaryBtn: secondaryActionLabel || 'Use Sample Text',
+          secondaryBtn: secondaryActionLabel || 'Paste Link Instead',
         };
       case 'invalid_url':
         return {
@@ -134,7 +134,7 @@ export const ErrorStateCard: React.FC<ErrorStateCardProps> = ({
           title: 'Monthly free limit reached',
           message: 'You have completed all 50 free checks for this month! Your free quota resets on the 1st of next month.',
           primaryBtn: primaryActionLabel || 'View Your History',
-          secondaryBtn: secondaryActionLabel || 'Reset Demo Quota',
+          secondaryBtn: secondaryActionLabel || 'Reset Monthly Quota',
         };
     }
   };

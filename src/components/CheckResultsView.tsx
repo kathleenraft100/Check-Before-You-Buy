@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -48,6 +48,13 @@ export interface ResultModel {
   couldNotVerify: string[];
 }
 
+export interface VerificationChecklistItem {
+  id: string;
+  label: string;
+  description: string;
+  priority?: 'urgent' | 'recommended' | 'standard' | string;
+}
+
 export interface StructuredAnalysisData {
   status: 'LOOKS_REASONABLE' | 'PAUSE_AND_CHECK' | 'DONT_PAY_YET';
   confidence: 'HIGH' | 'MODERATE' | 'LIMITED';
@@ -62,6 +69,7 @@ export interface StructuredAnalysisData {
     detail: string;
     tag: string;
   };
+  verification_checklist?: VerificationChecklistItem[];
   seller_question?: string;
   simple_explanations?: Record<string, string>;
   isFallback?: boolean;
@@ -74,51 +82,51 @@ const PRESET_RESULTS: Record<ResultVerdict, ResultModel> = {
     emoji: '🟢',
     confidence: 'High',
     explanation:
-      'This purchase shows clear signs of an authentic seller, realistic pricing, transparent return rights, and no hidden subscription fees.',
+      'Based on the information provided, this offer appears consistent with standard retail listings, with transparent return disclosures and no obvious recurring billing traps.',
     price: {
       title: 'PRICE',
-      statusText: 'Fair Market Pricing',
+      statusText: 'Appears Consistent',
       isPositive: true,
       notes: [
-        'Matches recent 90-day baseline across major authorized retailers.',
-        'No deceptive added-on fees at final checkout screen.',
-        'Advertised markdown reflects a verified promotional sale, not an inflated fake discount.',
+        'Stated pricing aligns with typical market retail expectations.',
+        'No deceptive added-on fees identified in the submitted checkout screens.',
+        'Promotional discount representation does not display obvious artificial inflation in the provided material.',
       ],
     },
     seller: {
       title: 'SELLER',
-      statusText: 'Verified & Established',
+      statusText: 'Disclosed Merchant Details',
       isPositive: true,
       notes: [
-        'Domain registered over 4 years ago with public business registration.',
-        'Direct customer service email and active telephone support provided.',
-        'Positive track record across independent buyer communities.',
+        'Seller discloses direct customer support contact channels.',
+        'Storefront information provided includes clear merchant identification.',
+        'No immediate impersonation or high-risk seller indicators observed in submitted material.',
       ],
     },
     terms: {
       title: 'TERMS',
-      statusText: 'Standard Return Protections',
+      statusText: 'Disclosed Return Terms',
       isPositive: true,
       notes: [
-        '30-day money-back guarantee with prepaid return shipping labels.',
-        'Zero restocking fees or handling charges on returns.',
-        'Full 1-year manufacturer warranty honored directly.',
+        'A stated 30-day return window is described in the provided terms.',
+        'Terms do not indicate excessive restocking deductions in the submitted material.',
+        'Standard warranty coverage is mentioned in the offer details.',
       ],
     },
     redFlags: {
       title: 'RED FLAGS',
-      statusText: 'No Suspicious Patterns',
+      statusText: 'No High-Pressure Signals Observed',
       isPositive: true,
       notes: [
-        'No artificial urgency timers or fabricated stock countdowns.',
-        'No forced recurring auto-ship or monthly membership traps.',
-        'Original product photography matching verified customer unboxings.',
+        'No artificial urgency countdown timers or fabricated popups detected in the submitted input.',
+        'No undisclosed automatic subscription or auto-ship clauses found in the provided text.',
+        'Imagery appears standard without obvious counterfeit or stolen indicator patterns.',
       ],
     },
     couldNotVerify: [
-      'Carrier delivery speed and handling delays in your specific zip code.',
-      'Exact inventory stock counts at third-party regional warehouses.',
-      'Long-term hardware durability without long-term hands-on usage.',
+      'Physical item authenticity and manufacturing quality (cannot be confirmed from screenshots or links).',
+      'Actual seller fulfillment transit times and warehouse dispatch reliability.',
+      'How customer support handles refund disputes in practice.',
     ],
   },
 
@@ -294,9 +302,9 @@ export const CheckResultsView: React.FC<CheckResultsViewProps> = ({
     }));
   };
 
-  const isUsingRealAnalysis = !!analysisData && activeVerdict === mappedAnalysisVerdict;
+  const isUsingRealAnalysis = !!analysisData;
 
-  const currentData: ResultModel = isUsingRealAnalysis && analysisData
+  const currentData: ResultModel = analysisData
     ? {
         verdict: activeVerdict,
         verdictTitle:
@@ -317,7 +325,10 @@ export const CheckResultsView: React.FC<CheckResultsViewProps> = ({
         seller: analysisData.seller_findings,
         terms: analysisData.terms_findings,
         redFlags: analysisData.red_flags,
-        couldNotVerify: analysisData.unverified_items || PRESET_RESULTS[activeVerdict].couldNotVerify,
+        couldNotVerify:
+          analysisData.unverified_items && analysisData.unverified_items.length > 0
+            ? analysisData.unverified_items
+            : PRESET_RESULTS[activeVerdict].couldNotVerify,
       }
     : PRESET_RESULTS[activeVerdict];
 
@@ -352,7 +363,7 @@ ${topItems.join('\n')}
 Recommended Next Step:
 👉 ${nextStepAction}
 
-Verified on-device with Check Before You Buy · Deliberate purchase protection`;
+Based on the information provided · Pre-purchase safety evaluation with Check Before You Buy`;
   };
 
   const handleCopySummary = () => {
@@ -378,6 +389,18 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
     // Fallback to clipboard if share is unsupported or fails
     handleCopySummary();
   };
+
+  // Keyboard navigation: Escape key closes active modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (shareModalOpen) setShareModalOpen(false);
+        if (explainModalOpen) setExplainModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shareModalOpen, explainModalOpen]);
 
   // Helper for status colors
   const getVerdictTheme = (v: ResultVerdict) => {
@@ -450,71 +473,20 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
             <span>Share</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setCurrentSource(currentSource === 'AI' ? (sourceCategory && sourceCategory !== 'AI' ? sourceCategory : 'TikTok') : 'AI')}
-            className={`text-xs font-semibold px-3 py-1 rounded-full border transition-all flex items-center gap-1.5 active:scale-95 ${
-              currentSource === 'AI'
-                ? 'bg-indigo-950 text-indigo-200 border-indigo-500/40 shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200/80'
-            }`}
-          >
-            <span className="text-slate-400 font-normal">Source:</span>
+          <div className="text-xs font-semibold px-3 py-1.5 rounded-full border bg-slate-100/90 text-slate-700 border-slate-200/90 flex items-center gap-1.5">
+            <span className="text-slate-500 font-normal">Source:</span>
             <strong className="text-slate-900 flex items-center gap-1">
               {currentSource === 'AI' ? (
                 <>
                   <span>🤖</span>
-                  <span className="text-indigo-300">AI Recommendation</span>
+                  <span className="text-indigo-800 font-bold">AI Recommendation</span>
                 </>
               ) : (
                 <span>{currentSource || 'Website'}</span>
               )}
             </strong>
-            <span className="text-[10px] text-slate-400 font-normal ml-0.5">
-              {currentSource === 'AI' ? '✕' : '⇄ Test AI'}
-            </span>
-          </button>
+          </div>
         </div>
-      </div>
-
-      {/* Interactive Prototype State Switcher (Demonstrating all 3 required states) */}
-      <div className="p-1.5 bg-slate-100/90 rounded-2xl flex items-center gap-1 text-xs">
-        <button
-          type="button"
-          onClick={() => setActiveVerdict('reasonable')}
-          className={`flex-1 py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 ${
-            activeVerdict === 'reasonable'
-              ? 'bg-white text-emerald-950 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🟢</span>
-          <span className="truncate">Reasonable</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveVerdict('pause')}
-          className={`flex-1 py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 ${
-            activeVerdict === 'pause'
-              ? 'bg-white text-amber-950 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🟡</span>
-          <span className="truncate">Pause</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveVerdict('dont_pay')}
-          className={`flex-1 py-2 px-2 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1 ${
-            activeVerdict === 'dont_pay'
-              ? 'bg-white text-rose-950 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          <span>🔴</span>
-          <span className="truncate">Don't Pay</span>
-        </button>
       </div>
 
       {/* ---------------------------------------------------------------------
@@ -728,6 +700,20 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
                             </button>
                             <button
                               type="button"
+                              onClick={() => handleOpenExplain('shipping')}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2.5 py-1 rounded-xl transition-all active:scale-95"
+                            >
+                              <span>🚚 Shipping Terms</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenExplain('cancellation')}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2.5 py-1 rounded-xl transition-all active:scale-95"
+                            >
+                              <span>🚫 Cancellation</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleOpenExplain('warranties')}
                               className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 px-2.5 py-1 rounded-xl transition-all active:scale-95"
                             >
@@ -820,17 +806,22 @@ Verified on-device with Check Before You Buy · Deliberate purchase protection`;
       </section>
 
       {/* ---------------------------------------------------------------------
-          “WHAT SHOULD I DO BEFORE PAYING?” SECTION (PROMPT 9)
-          - Pre-payment Verification Checklist (5 items)
+          “WHAT SHOULD I DO BEFORE PAYING?” SECTION (PROMPT 9, 23, 24)
+          - Dynamic Pre-payment Verification Checklist prioritized by issues found
           - NEXT BEST STEP card (Concrete verification action)
-          - ASK THE SELLER button (Neutral inquiry generator)
+          - ASK THE SELLER button (Context-specific neutral inquiry generator)
          --------------------------------------------------------------------- */}
       <WhatToDoNextSection
         verdict={activeVerdict}
         sourceCategory={sourceCategory}
         inputContent={inputContent}
         customNextStep={isUsingRealAnalysis ? analysisData?.next_steps : undefined}
+        customChecklist={isUsingRealAnalysis ? analysisData?.verification_checklist : undefined}
         customSellerQuestion={isUsingRealAnalysis ? analysisData?.seller_question : undefined}
+        priceFindings={currentData.price}
+        sellerFindings={currentData.seller}
+        termsFindings={currentData.terms}
+        couldNotVerifyItems={currentData.couldNotVerify}
       />
 
       {/* ---------------------------------------------------------------------

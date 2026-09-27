@@ -21,7 +21,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckResultsView, ResultVerdict } from '../CheckResultsView';
+import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { SourceType } from './CheckTab';
 
 export const YouTab: React.FC = () => {
@@ -29,18 +29,39 @@ export const YouTab: React.FC = () => {
   const [usageCount, setUsageCount] = useState<number>(() => {
     try {
       const stored = localStorage.getItem('cb_usage_count_v1');
-      return stored !== null ? parseInt(stored, 10) : 14;
+      if (stored !== null) return parseInt(stored, 10);
+      const storedHistory = localStorage.getItem('cb_check_history_v1');
+      if (storedHistory) {
+        const parsed = JSON.parse(storedHistory);
+        if (Array.isArray(parsed)) return parsed.length;
+      }
+      return 0;
     } catch {
-      return 14;
+      return 0;
     }
   });
 
-  const handleSetUsage = (count: number) => {
+  // Calculate real metrics from stored evaluations
+  const getHistoryStats = () => {
     try {
-      localStorage.setItem('cb_usage_count_v1', String(count));
+      const stored = localStorage.getItem('cb_check_history_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const pauseCount = parsed.filter((i: any) => i.verdict === 'pause').length;
+          const platforms = new Set(parsed.map((i: any) => i.source).filter(Boolean));
+          return {
+            totalChecks: parsed.length,
+            pauseCount,
+            platformCount: platforms.size,
+          };
+        }
+      }
     } catch {}
-    setUsageCount(count);
+    return { totalChecks: 0, pauseCount: 0, platformCount: 0 };
   };
+
+  const historyStats = getHistoryStats();
 
   // Appearance state (Light, Dark, System)
   const [appearanceTheme, setAppearanceTheme] = useState<'light' | 'dark' | 'system'>('light');
@@ -52,32 +73,60 @@ export const YouTab: React.FC = () => {
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
 
-  // Local storage clear status
+  // Local storage clear status & confirmation
   const [dataCleared, setDataCleared] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // Saved checks (sample bookmarks stored locally)
+  // Keyboard navigation: Escape key closes open modals
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showClearConfirm) {
+          setShowClearConfirm(false);
+        } else if (activeModal) {
+          setActiveModal(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeModal, showClearConfirm]);
+
+  // Saved checks stored locally
   const [savedChecks, setSavedChecks] = useState<Array<{
     id: string;
     title: string;
     date: string;
     verdict: ResultVerdict;
     source: SourceType;
-  }>>([
-    {
-      id: 'save-1',
-      title: 'Sony WH-1000XM5 Wireless Headphones',
-      date: 'Sep 25, 2026',
-      verdict: 'reasonable',
-      source: 'Google',
-    },
-    {
-      id: 'save-2',
-      title: 'Viral Ultrasonic Sonic-Clean Jewelry Machine',
-      date: 'Sep 24, 2026',
-      verdict: 'pause',
-      source: 'TikTok',
-    },
-  ]);
+    analysisData?: StructuredAnalysisData;
+  }>>(() => {
+    try {
+      const stored = localStorage.getItem('cb_saved_checks_v1');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
+  // Keep saved checks in sync with storage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('cb_saved_checks_v1', JSON.stringify(savedChecks));
+    } catch {}
+  }, [savedChecks]);
+
+  // Active saved check when reopened
+  const [activeSavedItem, setActiveSavedItem] = useState<{
+    id: string;
+    title: string;
+    date: string;
+    verdict: ResultVerdict;
+    source: SourceType;
+    analysisData?: StructuredAnalysisData;
+  } | null>(null);
 
   const handleRemoveSaved = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -87,10 +136,13 @@ export const YouTab: React.FC = () => {
   const handleClearAllData = () => {
     try {
       localStorage.removeItem('cb_check_history_v1');
+      localStorage.removeItem('cb_saved_checks_v1');
+      localStorage.setItem('cb_usage_count_v1', '0');
     } catch (e) {
       // Ignore
     }
     setSavedChecks([]);
+    setUsageCount(0);
     setDataCleared(true);
     setTimeout(() => setDataCleared(false), 3000);
   };
@@ -105,6 +157,37 @@ export const YouTab: React.FC = () => {
       setActiveModal(null);
     }, 2000);
   };
+
+  // If user reopened a saved item from bookmarks
+  if (activeSavedItem) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between pt-1">
+          <button
+            type="button"
+            onClick={() => setActiveSavedItem(null)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to You</span>
+          </button>
+
+          <span className="text-xs text-slate-500 font-medium">
+            Saved on {activeSavedItem.date}
+          </span>
+        </div>
+
+        <CheckResultsView
+          initialVerdict={activeSavedItem.verdict}
+          sourceCategory={activeSavedItem.source}
+          inputContent={activeSavedItem.title}
+          analysisData={activeSavedItem.analysisData}
+          onStartNewCheck={() => setActiveSavedItem(null)}
+          onBackToInput={() => setActiveSavedItem(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -165,12 +248,12 @@ export const YouTab: React.FC = () => {
                 Usage this month
               </span>
               <span className="text-xs text-slate-500 block truncate">
-                14 evaluations completed · 3 pauses taken
+                {usageCount} evaluations completed{historyStats.pauseCount > 0 ? ` · ${historyStats.pauseCount} pauses taken` : ''}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-semibold text-slate-400">14 / 50</span>
+            <span className="text-xs font-semibold text-slate-400">{usageCount} / 50</span>
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </button>
@@ -290,7 +373,7 @@ export const YouTab: React.FC = () => {
       </section>
 
       {/* ---------------------------------------------------------------------
-          POLISHED PLACEHOLDER FOR FUTURE PREMIUM FEATURES
+          FUTURE ROADMAP FEATURES
           (Clearly labeled as coming later — no payment or subscription code)
          --------------------------------------------------------------------- */}
       <section className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-md space-y-4">
@@ -408,7 +491,7 @@ export const YouTab: React.FC = () => {
                       </span>
                       <span className="text-2xl font-black text-slate-900 block mt-1">{usageCount}</span>
                       <span className="text-[11px] text-emerald-700 font-semibold block mt-0.5">
-                        Across 4 platforms
+                        {historyStats.platformCount > 0 ? `Across ${historyStats.platformCount} source${historyStats.platformCount === 1 ? '' : 's'}` : 'On this device'}
                       </span>
                     </div>
 
@@ -416,7 +499,7 @@ export const YouTab: React.FC = () => {
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
                         Impulse Pauses Taken
                       </span>
-                      <span className="text-2xl font-black text-amber-600 block mt-1">3</span>
+                      <span className="text-2xl font-black text-amber-600 block mt-1">{historyStats.pauseCount}</span>
                       <span className="text-[11px] text-slate-500 font-semibold block mt-0.5">
                         24-hr cooling off
                       </span>
@@ -424,41 +507,10 @@ export const YouTab: React.FC = () => {
                   </div>
 
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 text-xs text-slate-600 space-y-1">
-                    <span className="font-bold text-slate-900 block">Estimated Savings Impact</span>
+                    <span className="font-bold text-slate-900 block">Purchase Verification Impact</span>
                     <p className="leading-relaxed">
-                      Taking a pause prevented an estimated $184 in potential regret purchases and overseas return shipping costs this month.
+                      Taking a pause before checkout gives you time to verify return policies, search independent buyer reviews, and avoid impulse traps.
                     </p>
-                  </div>
-
-                  {/* Testing Helper for Edge State verification */}
-                  <div className="p-3 rounded-2xl bg-slate-100/70 border border-slate-200 text-xs space-y-2">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Edge State Tester
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleSetUsage(50)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition-colors ${
-                          usageCount >= 50
-                            ? 'bg-purple-900 text-white'
-                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        Set to 50 (Limit Reached)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSetUsage(14)}
-                        className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold transition-colors ${
-                          usageCount === 14
-                            ? 'bg-slate-900 text-white'
-                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        Reset to 14
-                      </button>
-                    </div>
                   </div>
                 </div>
               )}
@@ -475,24 +527,41 @@ export const YouTab: React.FC = () => {
                       {savedChecks.map((item) => (
                         <div
                           key={item.id}
-                          className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 text-xs"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setActiveModal(null);
+                            setActiveSavedItem(item);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setActiveModal(null);
+                              setActiveSavedItem(item);
+                            }
+                          }}
+                          className="p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100/90 border border-slate-200/80 flex items-center justify-between gap-3 text-xs cursor-pointer transition-all active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 group"
                         >
                           <div className="min-w-0 flex-1">
-                            <span className="font-bold text-slate-900 block truncate">
+                            <span className="font-bold text-slate-900 block truncate group-hover:text-emerald-800 transition-colors">
                               {item.title}
                             </span>
-                            <span className="text-[11px] text-slate-400">
+                            <span className="text-[11px] text-slate-500">
                               {item.date} · Found on {item.source}
                             </span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={(e) => handleRemoveSaved(item.id, e)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                            title="Remove bookmark"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => handleRemoveSaved(item.id, e)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                              title="Remove bookmark"
+                              aria-label="Remove bookmark"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -594,16 +663,48 @@ export const YouTab: React.FC = () => {
                   <div className="space-y-2">
                     <span className="font-bold text-slate-900 block">Device Storage Control:</span>
                     <p className="text-slate-500">
-                      You can instantly purge all cached evaluation history and saved bookmarks with one tap.
+                      You can purge all cached evaluation history and saved bookmarks from this device.
                     </p>
-                    <button
-                      type="button"
-                      onClick={handleClearAllData}
-                      className="w-full h-11 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 border border-rose-200/80 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>{dataCleared ? 'Data Cleared!' : 'Clear All Local Data'}</span>
-                    </button>
+                    
+                    {!showClearConfirm ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowClearConfirm(true)}
+                        className="w-full h-11 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center gap-2 border border-rose-200/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>{dataCleared ? 'Data Cleared!' : 'Clear All Local Data'}</span>
+                      </button>
+                    ) : (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl space-y-2.5 animate-in fade-in duration-100">
+                        <div className="flex items-center gap-2 text-rose-900 font-bold text-xs">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>Erase all history and bookmarks?</span>
+                        </div>
+                        <p className="text-[11px] text-rose-700 leading-snug">
+                          This removes all local evaluation records. This action cannot be undone.
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowClearConfirm(false)}
+                            className="h-9 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleClearAllData();
+                              setShowClearConfirm(false);
+                            }}
+                            className="h-9 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-xs"
+                          >
+                            Confirm Erase
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

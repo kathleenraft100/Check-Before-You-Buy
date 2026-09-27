@@ -13,7 +13,9 @@ import {
   Clock,
   CreditCard,
   RefreshCw,
-  Repeat
+  Repeat,
+  Truck,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -24,6 +26,8 @@ export type ExplanationTopic =
   | 'subscriptions'
   | 'renewal'
   | 'payments'
+  | 'shipping'
+  | 'cancellation'
   | 'urgency';
 
 export interface TopicData {
@@ -89,7 +93,7 @@ export const EXPLANATION_TOPICS: Record<ExplanationTopic, TopicData> = {
       {
         term: 'Customer pays return shipping',
         translation:
-          'On overseas dropshipped goods, shipping back to China or an international hub often costs $45–$80.',
+          'On overseas dropshipped goods, shipping back to an international hub often costs $45–$80.',
       },
       {
         term: '20% restocking fee',
@@ -179,7 +183,7 @@ export const EXPLANATION_TOPICS: Record<ExplanationTopic, TopicData> = {
       {
         term: '7-day trial for $1.00',
         translation:
-          'On day 8, your card will automatically be charged the full rate ($49.99–$99.99/mo) without notice.',
+          'On day 8, your card will automatically be charged the full rate without notice.',
       },
       {
         term: 'Renews automatically at standard rate',
@@ -224,7 +228,62 @@ export const EXPLANATION_TOPICS: Record<ExplanationTopic, TopicData> = {
     ],
     missingContextWarning:
       'If the merchant redirects to an off-site payment link or unencrypted portal, transaction security depends on processor credentials that were not provided.',
-    smartAdvice: 'Always use a standard credit card (or PayPal Goods & Services) with statutory dispute and chargeback rights.',
+    smartAdvice: 'Always use a standard credit card with statutory dispute and chargeback rights.',
+  },
+
+  shipping: {
+    id: 'shipping',
+    title: 'Shipping Terms',
+    categoryLabel: 'Transit & Delivery',
+    emoji: '🚚',
+    icon: Truck,
+    plainEnglishSummary:
+      'Shipping promises like "fast processing" often disguise lengthy 3-to-5 week international transit times from overseas suppliers.',
+    commonPhrases: [
+      {
+        term: 'Ships within 24 hours',
+        translation:
+          'The shipping label is printed in 24 hours, but physical transit may still take weeks.',
+      },
+      {
+        term: 'Standard shipping 12-25 business days',
+        translation:
+          'Items are shipped via economy overseas postal packet with limited tracking updates.',
+      },
+      {
+        term: 'Seller not responsible for customs delays',
+        translation:
+          'If customs holds or rejects the package, your refund is blocked until resolved.',
+      },
+    ],
+    missingContextWarning:
+      'Carrier tracking guarantees and warehouse departure points could not be verified from the offer text alone.',
+    smartAdvice: 'Look for guaranteed delivery dates rather than vague processing time estimates.',
+  },
+
+  cancellation: {
+    id: 'cancellation',
+    title: 'Cancellation Terms',
+    categoryLabel: 'Order Cancellation',
+    emoji: '🚫',
+    icon: XCircle,
+    plainEnglishSummary:
+      'Many impulse storefronts lock orders immediately upon checkout, claiming orders enter "automated processing" within minutes so you cannot cancel.',
+    commonPhrases: [
+      {
+        term: 'Orders cannot be modified once placed',
+        translation:
+          'You cannot change the size, address, or cancel even 5 minutes after tapping pay.',
+      },
+      {
+        term: 'Cancellation subject to 10% fee',
+        translation:
+          'A penalty charge docked from your card even if the package has not left the warehouse.',
+      },
+    ],
+    missingContextWarning:
+      'Exact cancellation window limits were not detailed before checkout.',
+    smartAdvice: 'Assume an order cannot be canceled once submitted; verify everything before tapping pay.',
   },
 
   urgency: {
@@ -275,8 +334,7 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
 
   if (!isOpen) return null;
 
-  const topicData = EXPLANATION_TOPICS[selectedTopic];
-  const TopicIcon = topicData.icon;
+  const topicData = EXPLANATION_TOPICS[selectedTopic] || EXPLANATION_TOPICS.pricing;
 
   const topicKeys: ExplanationTopic[] = [
     'pricing',
@@ -285,8 +343,15 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
     'subscriptions',
     'renewal',
     'payments',
+    'shipping',
+    'cancellation',
     'urgency',
   ];
+
+  const activeCustomExplanation = customExplanations?.[selectedTopic];
+  const isTermMissing = activeCustomExplanation?.toLowerCase().startsWith('not provided') ||
+    activeCustomExplanation?.toLowerCase().includes('does not disclose') ||
+    activeCustomExplanation?.toLowerCase().includes('not mentioned');
 
   return (
     <div
@@ -330,7 +395,7 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
           </button>
         </div>
 
-        {/* Topic Selector Tabs (7 Supported Topics) */}
+        {/* Topic Selector Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           {topicKeys.map((key) => {
             const topic = EXPLANATION_TOPICS[key];
@@ -362,19 +427,34 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
                 {topicData.title}
               </h3>
             </div>
-            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              {topicData.categoryLabel}
+            <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+              isTermMissing
+                ? 'text-amber-800 bg-amber-100/70 border-amber-200'
+                : 'text-emerald-800 bg-emerald-100/70 border-emerald-200'
+            }`}>
+              {isTermMissing ? 'Not Disclosed in Offer' : topicData.categoryLabel}
             </span>
           </div>
 
           {/* Plain English Core Meaning */}
           <div className="space-y-1">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              The Plain Truth:
-            </span>
-            <p className="text-sm font-semibold text-slate-900 leading-relaxed bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-2xs">
-              {customExplanations?.[selectedTopic] || topicData.plainEnglishSummary}
-            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                {activeCustomExplanation ? 'AI Offer Analysis:' : 'The Plain Truth:'}
+              </span>
+              {activeCustomExplanation && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Grounded in your offer
+                </span>
+              )}
+            </div>
+            <div className={`p-3.5 rounded-2xl border text-sm leading-relaxed shadow-2xs ${
+              isTermMissing
+                ? 'bg-amber-50/70 border-amber-200/80 text-amber-950 font-medium'
+                : 'bg-white border-slate-200/70 text-slate-900 font-semibold'
+            }`}>
+              {activeCustomExplanation || topicData.plainEnglishSummary}
+            </div>
           </div>
 
           {/* Common Fine-Print Phrases Breakdown */}
@@ -401,7 +481,7 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
             </div>
           </div>
 
-          {/* MANDATORY REQUIREMENT: Missing Context Notice */}
+          {/* Missing Context Notice */}
           <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-950 space-y-1">
             <div className="font-bold flex items-center gap-1.5 text-amber-900">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />

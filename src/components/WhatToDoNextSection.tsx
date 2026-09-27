@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   CheckSquare, 
   Square, 
@@ -14,7 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ResultVerdict } from './CheckResultsView';
+import { ResultVerdict, SectionDetail, VerificationChecklistItem } from './CheckResultsView';
 
 interface WhatToDoNextSectionProps {
   verdict: ResultVerdict;
@@ -25,7 +25,12 @@ interface WhatToDoNextSectionProps {
     detail: string;
     tag: string;
   };
+  customChecklist?: VerificationChecklistItem[];
   customSellerQuestion?: string;
+  priceFindings?: SectionDetail;
+  sellerFindings?: SectionDetail;
+  termsFindings?: SectionDetail;
+  couldNotVerifyItems?: string[];
 }
 
 export const WhatToDoNextSection: React.FC<WhatToDoNextSectionProps> = ({
@@ -33,16 +38,110 @@ export const WhatToDoNextSection: React.FC<WhatToDoNextSectionProps> = ({
   sourceCategory,
   inputContent,
   customNextStep,
+  customChecklist,
   customSellerQuestion,
+  priceFindings,
+  sellerFindings,
+  termsFindings,
+  couldNotVerifyItems,
 }) => {
+  // Build dynamic, prioritized verification checklist
+  const dynamicChecklist: Array<{
+    id: string;
+    label: string;
+    description: string;
+    priorityBadge?: string;
+  }> = useMemo(() => {
+    if (customChecklist && customChecklist.length > 0) {
+      return customChecklist.map((item) => ({
+        id: item.id,
+        label: item.label,
+        description: item.description,
+        priorityBadge:
+          item.priority === 'urgent'
+            ? 'High Priority'
+            : item.priority === 'recommended'
+            ? 'Recommended'
+            : undefined,
+      }));
+    }
+
+    // Dynamic derivation based on actual analysis findings & what was missing
+    const items: Array<{
+      id: string;
+      label: string;
+      description: string;
+      priorityBadge?: string;
+    }> = [];
+
+    // 1. Seller Identity Check
+    if (sellerFindings && (!sellerFindings.isPositive || sellerFindings.isWarning)) {
+      items.push({
+        id: 'seller_verify',
+        label: 'Verify seller identity & registration',
+        description:
+          'Seller credentials could not be verified from the offer. Search corporate registry, domain WHOIS age, and verify an active customer service phone number.',
+        priorityBadge: 'High Priority',
+      });
+    }
+
+    // 2. Terms & Return Policy Check
+    if (termsFindings && (!termsFindings.isPositive || termsFindings.isWarning)) {
+      items.push({
+        id: 'return_policy',
+        label: 'Inspect return policy & domestic return warehouse',
+        description:
+          'Return terms were not transparently provided. Confirm return deadlines, restocking fees, and whether buyer pays overseas return postage.',
+        priorityBadge: 'High Priority',
+      });
+    }
+
+    // 3. Price & Hidden Fees Check
+    if (priceFindings && (!priceFindings.isPositive || priceFindings.isWarning)) {
+      items.push({
+        id: 'final_price',
+        label: 'Verify final checkout total & recurring charges',
+        description:
+          'Check that the price is not an inflated markdown anchor, and inspect the order summary for hidden handling fees or auto-ship subscription checkboxes.',
+        priorityBadge: 'Recommended',
+      });
+    }
+
+    // 4. Missing Information Items from couldNotVerify
+    if (couldNotVerifyItems && couldNotVerifyItems.length > 0) {
+      const topMissing = couldNotVerifyItems[0];
+      items.push({
+        id: 'missing_info',
+        label: `Obtain missing details: ${topMissing.slice(0, 36)}${topMissing.length > 36 ? '...' : ''}`,
+        description: `Crucial details could not be verified from the submission: ${topMissing}`,
+        priorityBadge: 'Recommended',
+      });
+    }
+
+    // 5. Payment Protection Check
+    items.push({
+      id: 'payment_protection',
+      label: 'Ensure purchase protection on payment method',
+      description:
+        'Pay exclusively using a standard credit card with dispute rights. Avoid debit transfers, wire payments, or peer-to-peer apps that offer zero fraud recourse.',
+      priorityBadge: 'Standard Safety',
+    });
+
+    // Ensure at least 3 items if offer looks reasonable
+    if (items.length < 3) {
+      items.push({
+        id: 'order_receipt',
+        label: 'Save order confirmation & item listing snapshot',
+        description:
+          'Take a screenshot of the product specifications, pricing, and return terms at checkout for your records in case of order discrepancies.',
+      });
+    }
+
+    return items;
+  }, [customChecklist, priceFindings, sellerFindings, termsFindings, couldNotVerifyItems]);
+
   // Checklist state
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({
-    seller: false,
-    price: false,
-    returns: false,
-    payment: false,
-    claims: false,
-  });
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
   // "Ask the Seller" question drawer state
   const [askSellerOpen, setAskSellerOpen] = useState(false);
@@ -86,52 +185,50 @@ export const WhatToDoNextSection: React.FC<WhatToDoNextSectionProps> = ({
 
   const nextStep = customNextStep || getNextBestStep();
 
-  // Neutral verification question template
-  const defaultSellerQuestionText = `Hello,
+  // Neutral verification question fallback tailored to issues found
+  const getContextualSellerQuestion = () => {
+    if (termsFindings && (!termsFindings.isPositive || termsFindings.isWarning)) {
+      return `Hello,
 
-I am considering ordering from your store and would appreciate clarification on a few details before completing my order:
+I am considering ordering from your store and would appreciate clarification on your return policy before placing my order:
 
-1. Return Policy: Could you confirm your physical return address location, and whether returns include a prepaid shipping label?
-2. Condition & Fees: Are there any restocking or handling deductions if the item packaging is opened for inspection?
-3. Delivery & Billing: Does the final checkout price include all applicable taxes and shipping, with no recurring or automatic subscription enrollments?
+1. Return Address: What is the physical location/country of your returns warehouse?
+2. Return Shipping: Do you provide a prepaid return shipping label, or does the customer pay postage?
+3. Restocking Fees: Are there any deductions or restocking charges if the package is opened?
 
 Thank you for your assistance.`;
+    }
 
-  const sellerQuestionText = customSellerQuestion || defaultSellerQuestionText;
+    if (sellerFindings && (!sellerFindings.isPositive || sellerFindings.isWarning)) {
+      return `Hello,
+
+I am reviewing this product listing and would like to confirm your store's business details before ordering:
+
+1. Business Details: What is the registered business name and customer support phone number for your store?
+2. Shipping Origin: From which facility or warehouse will this item be fulfilled and dispatched?
+3. Delivery Guarantee: What is the estimated transit window and carrier service used?
+
+Thank you for your assistance.`;
+    }
+
+    return `Hello,
+
+I am interested in this item and would like to confirm a few product details before completing checkout:
+
+1. Condition & Authenticity: Can you confirm the exact condition, model number, and manufacturer warranty coverage included with this item?
+2. Checkout Total: Does the advertised price include all taxes and shipping, with no automatic recurring subscriptions?
+3. Return Window: How many days does the buyer have to inspect the product upon delivery?
+
+Thank you for your assistance.`;
+  };
+
+  const sellerQuestionText = customSellerQuestion || getContextualSellerQuestion();
 
   const handleCopyQuestion = () => {
     navigator.clipboard.writeText(sellerQuestionText);
     setHasCopiedQuestion(true);
     setTimeout(() => setHasCopiedQuestion(false), 2400);
   };
-
-  const checklist = [
-    {
-      id: 'seller',
-      label: 'Verify seller independently',
-      description: 'Check how long the company has existed and look for a real phone number or address.',
-    },
-    {
-      id: 'price',
-      label: 'Confirm final price',
-      description: 'Check taxes, shipping charges, and make sure no monthly auto-ship box is checked.',
-    },
-    {
-      id: 'returns',
-      label: 'Read return policy',
-      description: 'Verify the return window (e.g. 14–30 days) and whether you or the seller pay return postage.',
-    },
-    {
-      id: 'payment',
-      label: 'Check payment protection',
-      description: 'Use a standard credit card with dispute rights; avoid wire transfers or peer-to-peer cash apps.',
-    },
-    {
-      id: 'claims',
-      label: 'Verify important claims',
-      description: 'Confirm that warranties, certifications, and product claims are stated in written documentation.',
-    },
-  ];
 
   return (
     <section className="bg-white rounded-3xl border border-slate-200/90 p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-5">
@@ -142,11 +239,11 @@ Thank you for your assistance.`;
             What should I do before paying?
           </h2>
           <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
-            {completedCount} of 5 verified
+            {completedCount} of {dynamicChecklist.length} verified
           </span>
         </div>
         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-          The decision to buy is always yours. Take a moment to verify these critical points independently.
+          The decision to buy is always yours. Verify these analysis-specific points before entering payment details.
         </p>
       </div>
 
@@ -174,20 +271,20 @@ Thank you for your assistance.`;
       </div>
 
       {/* ---------------------------------------------------------------------
-          CHECKLIST:
-          ☐ Verify seller independently
-          ☐ Confirm final price
-          ☐ Read return policy
-          ☐ Check payment protection
-          ☐ Verify important claims
+          DYNAMIC VERIFICATION CHECKLIST
          --------------------------------------------------------------------- */}
       <div className="space-y-2 pt-1">
-        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-          Pre-Payment Verification Checklist
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+            Pre-Payment Verification Checklist
+          </span>
+          <span className="text-[10px] text-slate-400 font-medium">
+            Tailored to this check
+          </span>
+        </div>
 
         <div className="space-y-2">
-          {checklist.map((item) => {
+          {dynamicChecklist.map((item) => {
             const isChecked = !!checkedItems[item.id];
             return (
               <button
@@ -211,13 +308,24 @@ Thank you for your assistance.`;
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <span
-                    className={`text-xs font-bold block leading-snug ${
-                      isChecked ? 'line-through text-slate-500' : 'text-slate-900'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`text-xs font-bold block leading-snug ${
+                        isChecked ? 'line-through text-slate-500' : 'text-slate-900'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                    {item.priorityBadge && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                        item.priorityBadge.includes('High')
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200/80'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200/80'
+                      }`}>
+                        {item.priorityBadge}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[11px] text-slate-500 mt-0.5 block leading-normal">
                     {item.description}
                   </span>
@@ -230,7 +338,7 @@ Thank you for your assistance.`;
 
       {/* ---------------------------------------------------------------------
           “ASK THE SELLER” BUTTON
-          Generates a neutral placeholder verification question
+          Generates a neutral seller verification question
          --------------------------------------------------------------------- */}
       <div className="pt-1">
         <button
@@ -338,3 +446,4 @@ Thank you for your assistance.`;
     </section>
   );
 };
+

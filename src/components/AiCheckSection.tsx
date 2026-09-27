@@ -60,26 +60,26 @@ export const AiCheckSection: React.FC<AiCheckSectionProps> = ({ inputReference }
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold shrink-0">✓</span>
                 <span>
-                  <strong>Technical Domain Security:</strong> Whether the linked URL uses valid SSL certificates and standard checkout protocols.
+                  <strong>Disclosed Terms & Fine Print:</strong> Return windows, restocking charges, cancellation rules, and recurring billing clauses explicitly stated in the submitted offer.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold shrink-0">✓</span>
                 <span>
-                  <strong>Disclosed Fine Print:</strong> Terms stated in the offer text, including return windows, restocking fees, and mandatory recurring rebill terms.
+                  <strong>Price Signal Consistency:</strong> Extreme markdown claims, artificial anchor prices, and hidden checkout add-ons apparent in the provided material.
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold shrink-0">✓</span>
                 <span>
-                  <strong>Known Template Patterns:</strong> Matching page layouts against generic turnkey dropship shopfront themes.
+                  <strong>High-Pressure Tactics:</strong> Countdown timers, fake stock urgency, and generic turnkey template patterns visible in the offer.
                 </span>
               </li>
             </ul>
           </div>
 
           <div className="pt-2 text-[10px] text-slate-400 border-t border-slate-800/80">
-            *Verification is limited to automated text analysis of provided data; not physical stock audits.
+            *Analysis is strictly based on the offer content you provide. We do not conduct external server or physical stock audits.
           </div>
         </div>
 

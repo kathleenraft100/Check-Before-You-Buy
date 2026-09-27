@@ -14,7 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckResultsView, ResultVerdict } from '../CheckResultsView';
+import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { SourceType } from './CheckTab';
 
 export interface HistoryItem {
@@ -23,64 +23,42 @@ export interface HistoryItem {
   date: string;
   verdict: ResultVerdict;
   source: SourceType | null;
+  summary?: string;
   inputContent?: string;
   previewUrl?: string;
+  analysisData?: StructuredAnalysisData;
 }
 
 const STORAGE_KEY = 'cb_check_history_v1';
-
-const DEFAULT_HISTORY: HistoryItem[] = [
-  {
-    id: 'hist-1',
-    name: 'Sony WH-1000XM5 Wireless Noise-Cancelling Headphones',
-    date: 'Today, 2:40 PM',
-    verdict: 'reasonable',
-    source: 'Google',
-    inputContent: 'https://store.sony.com/headphones/wh1000xm5',
-  },
-  {
-    id: 'hist-2',
-    name: 'Viral Ultrasonic Sonic-Clean Jewelry Machine (65% off)',
-    date: 'Yesterday, 6:15 PM',
-    verdict: 'pause',
-    source: 'TikTok',
-    inputContent: 'Flash Deal: Ultrasonic cleaner $24.99 with free shipping. Return policy: Buyer pays return shipping to international warehouse.',
-  },
-  {
-    id: 'hist-3',
-    name: 'Flash Deal: Designer Leather Travel Tote & Wallet Set',
-    date: 'Sep 23, 2026',
-    verdict: 'dont_pay',
-    source: 'Instagram',
-    inputContent: 'Exclusive 85% OFF Closing Sale! $39.99 today only. Note: "All sales strictly final."',
-  },
-  {
-    id: 'hist-4',
-    name: 'Smart Titanium Fitness Ring Pro (AI Recommended)',
-    date: 'Sep 20, 2026',
-    verdict: 'pause',
-    source: 'AI',
-    inputContent: 'Recommended by conversational AI shopping assistant.',
-  },
-];
 
 interface HistoryTabProps {
   onNavigateToCheck?: () => void;
 }
 
 export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => {
-  // Load persistent history from localStorage or fallback to default
+  // Load persistent history from localStorage with robust corruption and error handling
   const [items, setItems] = useState<HistoryItem[]>(() => {
     try {
+      if (typeof window === 'undefined' || !window.localStorage) return [];
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          // Gracefully sanitize and filter valid items
+          return parsed.filter(
+            (item): item is HistoryItem =>
+              item &&
+              typeof item === 'object' &&
+              typeof item.id === 'string' &&
+              (item.verdict === 'reasonable' || item.verdict === 'pause' || item.verdict === 'dont_pay')
+          );
+        }
       }
     } catch (e) {
-      // Storage unavailable or disabled
+      // Storage unavailable, disabled, or corrupted JSON
+      console.warn('Could not read check history from storage:', e);
     }
-    return DEFAULT_HISTORY;
+    return [];
   });
 
   // Active selected item for reopening result
@@ -92,27 +70,42 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
   // Synchronize with localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      }
     } catch (e) {
-      // Ignore write errors
+      // Storage quota exceeded or storage disabled
+      console.warn('Could not persist check history:', e);
     }
   }, [items]);
 
   // Remove individual history item
   const handleRemoveItem = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    setItems((prev) => {
+      const updated = prev.filter((item) => item.id !== id);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        }
+      } catch (err) {
+        console.warn('Could not update localStorage after item deletion:', err);
+      }
+      return updated;
+    });
   };
 
   // Safe clear all items with confirmation
   const handleClearAllConfirm = () => {
     setItems([]);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch (err) {
+      console.warn('Could not clear localStorage:', err);
+    }
     setConfirmClearModalOpen(false);
-  };
-
-  // Restore sample items for convenience
-  const handleRestoreSamples = () => {
-    setItems(DEFAULT_HISTORY);
   };
 
   // Helper for result state presentation
@@ -166,6 +159,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
           sourceCategory={activeItem.source}
           inputContent={activeItem.inputContent || activeItem.name}
           previewUrl={activeItem.previewUrl}
+          analysisData={activeItem.analysisData}
           onStartNewCheck={() => {
             setActiveItem(null);
             if (onNavigateToCheck) onNavigateToCheck();
@@ -188,7 +182,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
             History
           </h1>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Revisit your previous checks, red flag assessments, and verified findings.
+            Revisit your previous checks, red flag assessments, and evaluation findings.
           </p>
         </div>
 
@@ -246,9 +240,16 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
                     </div>
 
                     {/* Middle Row: Item Name or Short Description */}
-                    <h2 className="text-sm font-bold text-slate-900 group-hover:text-emerald-950 transition-colors line-clamp-2 leading-snug">
-                      {item.name}
-                    </h2>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900 group-hover:text-emerald-950 transition-colors line-clamp-2 leading-snug">
+                        {item.name}
+                      </h2>
+                      {item.summary && (
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1 leading-relaxed">
+                          {item.summary}
+                        </p>
+                      )}
+                    </div>
 
                     {/* Bottom Row: Source Discovery Badge */}
                     <div className="flex items-center gap-2 pt-0.5 text-xs text-slate-600">
@@ -305,25 +306,59 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
             </p>
           </div>
 
-          <div className="pt-2 max-w-xs mx-auto space-y-2">
+          <div className="pt-2 max-w-xs mx-auto">
             <button
               type="button"
               onClick={onNavigateToCheck}
-              className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10"
+              className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
             >
               <span>Start Your First Check</span>
               <ArrowRight className="w-4 h-4" />
             </button>
-
-            <button
-              type="button"
-              onClick={handleRestoreSamples}
-              className="w-full h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold text-xs transition-colors"
-            >
-              Restore sample history
-            </button>
           </div>
         </section>
+      )}
+
+      {/* Confirmation Modal to Prevent Accidental Data Loss */}
+      {confirmClearModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clear-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center mx-auto text-xl">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1.5">
+              <h3 id="clear-dialog-title" className="text-base font-bold text-slate-900">
+                Clear all saved evaluations?
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                This removes all saved checks from this device. This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmClearModalOpen(false)}
+                className="w-full h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+              >
+                Keep History
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAllConfirm}
+                className="w-full h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+              >
+                Yes, Clear All
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
