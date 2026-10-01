@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useBrandLogo } from '../context/LogoContext';
 
@@ -7,38 +7,23 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ activeTab }) => {
-  const { logoUrl, hasLogo } = useBrandLogo();
-  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
-
-  const displaySrc = logoUrl || '/ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg';
-  const showImg = (hasLogo || !logoLoadFailed);
+  const { logoUrl } = useBrandLogo();
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-xl border-b border-slate-100/90 px-4 py-3 sm:px-6 transition-colors">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {showImg ? (
-            <div className="w-11 h-11 rounded-xl bg-[#070e24] p-0.5 border border-slate-800/40 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="w-11 h-11 rounded-xl bg-[#070e24] p-0.5 border border-slate-800/40 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+            {logoUrl ? (
               <img
-                src={displaySrc}
+                src={logoUrl}
                 alt="CHECK Before You Buy"
-                onError={() => {
-                  const target = document.getElementById('app-official-logo') as HTMLImageElement;
-                  if (target && !target.src.includes('check-logo.png') && !target.src.startsWith('data:')) {
-                    target.src = '/check-logo.png';
-                  } else {
-                    setLogoLoadFailed(true);
-                  }
-                }}
-                id="app-official-logo"
                 className="w-full h-full object-contain rounded-lg"
               />
-            </div>
-          ) : (
-            <div className="w-11 h-11 rounded-xl bg-[#070e24] border border-slate-800 flex items-center justify-center text-[#00e5a3] shadow-xs">
-              <ShieldCheck className="w-6 h-6 stroke-[2.2]" />
-            </div>
-          )}
+            ) : (
+              <ShieldCheck className="w-6 h-6 text-[#00e5a3] stroke-[2.2]" />
+            )}
+          </div>
           <div className="space-y-0.5">
             <span className="block font-black text-base tracking-tight text-[#070e24] leading-none">
               CHECK

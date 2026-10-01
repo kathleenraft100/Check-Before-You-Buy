@@ -16,7 +16,8 @@ import {
   Share2,
   Copy,
   Check,
-  X
+  X,
+  Bookmark
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SourceType, SOURCES } from './tabs/CheckTab';
@@ -275,8 +276,68 @@ export const CheckResultsView: React.FC<CheckResultsViewProps> = ({
     mappedAnalysisVerdict || initialVerdict
   );
 
-  // Active source category (Supports AI Check mode)
-  const [currentSource, setCurrentSource] = useState<SourceType | null>(sourceCategory || 'AI');
+  // Active source category (Only 'AI' if explicitly selected or default preset)
+  const [currentSource, setCurrentSource] = useState<SourceType | null>(sourceCategory !== undefined ? sourceCategory : null);
+
+  // Synchronize state when incoming props update (e.g. reopening from History)
+  useEffect(() => {
+    if (mappedAnalysisVerdict) {
+      setActiveVerdict(mappedAnalysisVerdict);
+    } else if (initialVerdict) {
+      setActiveVerdict(initialVerdict);
+    }
+  }, [mappedAnalysisVerdict, initialVerdict]);
+
+  useEffect(() => {
+    setCurrentSource(sourceCategory !== undefined ? sourceCategory : null);
+  }, [sourceCategory]);
+
+  // Saved Checks bookmarking state (synced with cb_saved_checks_v1)
+  const [isSaved, setIsSaved] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('cb_saved_checks_v1');
+      if (!stored) return false;
+      const parsed = JSON.parse(stored);
+      const identifier = inputContent || 'Saved Check';
+      return parsed.some((item: any) => item.title === identifier || item.id === identifier);
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSave = () => {
+    try {
+      const stored = localStorage.getItem('cb_saved_checks_v1');
+      const existing = stored ? JSON.parse(stored) : [];
+      const identifier = inputContent || currentData.verdictTitle;
+
+      if (isSaved) {
+        const filtered = existing.filter((item: any) => item.title !== identifier && item.id !== identifier);
+        localStorage.setItem('cb_saved_checks_v1', JSON.stringify(filtered));
+        setIsSaved(false);
+      } else {
+        const now = new Date();
+        const formattedDate = now.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        });
+        const newItem = {
+          id: `saved-${Date.now()}`,
+          title: identifier,
+          date: formattedDate,
+          verdict: activeVerdict,
+          source: currentSource || 'Website',
+          analysisData: analysisData || undefined,
+        };
+        localStorage.setItem('cb_saved_checks_v1', JSON.stringify([newItem, ...existing]));
+        setIsSaved(true);
+      }
+    } catch (e) {
+      console.warn('Could not update saved checks:', e);
+    }
+  };
 
   // Signature Explain Feature modal state
   const [explainModalOpen, setExplainModalOpen] = useState(false);
@@ -451,18 +512,32 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-200">
       {/* Top Header bar with Back action */}
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex items-center justify-between pt-1 gap-2 flex-wrap sm:flex-nowrap">
         <button
           type="button"
           onClick={onBackToInput}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>New check</span>
         </button>
 
-        {/* Source Badge with Quick AI Check Toggle & Share Action */}
-        <div className="flex items-center gap-2">
+        {/* Source Badge with Quick AI Check Toggle, Save, & Share Actions */}
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap justify-end">
+          <button
+            type="button"
+            onClick={handleToggleSave}
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border shadow-2xs transition-all active:scale-95 ${
+              isSaved
+                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/90'
+            }`}
+            title={isSaved ? 'Remove from Saved Checks' : 'Save Check for Later'}
+          >
+            <Bookmark className={`w-3.5 h-3.5 ${isSaved ? 'fill-amber-500 text-amber-500' : 'text-slate-500'}`} />
+            <span>{isSaved ? 'Saved' : 'Save'}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShareModalOpen(true)}
@@ -482,7 +557,7 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
                   <span className="text-[#070e24] font-bold">AI Recommendation</span>
                 </>
               ) : (
-                <span>{currentSource || 'Website'}</span>
+                <span>{currentSource || 'Unspecified'}</span>
               )}
             </strong>
           </div>

@@ -5,6 +5,7 @@ import {
   Palette, 
   Info, 
   Shield, 
+  ShieldCheck,
   HelpCircle, 
   Sparkles, 
   ChevronRight, 
@@ -622,17 +623,17 @@ export const YouTab: React.FC = () => {
               {activeModal === 'about' && (
                 <div className="space-y-3.5 text-xs text-slate-600 leading-relaxed">
                   <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-slate-950 text-white border border-slate-800 shadow-sm">
-                    <img
-                      src={logoUrl || '/ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg'}
-                      alt="CHECK Before You Buy"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (!target.src.includes('check-logo.png') && !target.src.startsWith('data:')) {
-                          target.src = '/check-logo.png';
-                        }
-                      }}
-                      className="w-12 h-12 object-contain rounded-xl shrink-0"
-                    />
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt="CHECK Before You Buy"
+                        className="w-12 h-12 object-contain rounded-xl shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-[#070e24] flex items-center justify-center text-[#00e5a3] shrink-0 border border-slate-800">
+                        <ShieldCheck className="w-7 h-7 stroke-[2.2]" />
+                      </div>
+                    )}
                     <div>
                       <span className="font-black text-base block tracking-tight text-white leading-tight">
                         CHECK

@@ -296,24 +296,15 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
            --------------------------------------------------------------------- */
         <section className="py-12 px-4 text-center bg-white rounded-3xl border border-dashed border-slate-200 p-8 space-y-5 shadow-2xs">
           <div className="w-16 h-16 rounded-3xl overflow-hidden mx-auto flex items-center justify-center shadow-xs bg-[#070e24] border border-slate-800 p-0.5">
-            <img
-              src={logoUrl || '/ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg'}
-              alt="CHECK Before You Buy"
-              onError={(e) => {
-                const target = e.currentTarget;
-                if (!target.src.includes('check-logo.png') && !target.src.startsWith('data:')) {
-                  target.src = '/check-logo.png';
-                } else {
-                  target.style.display = 'none';
-                  const fb = target.nextElementSibling as HTMLElement;
-                  if (fb) fb.style.display = 'flex';
-                }
-              }}
-              className="w-full h-full object-contain rounded-2xl"
-            />
-            <div style={{ display: 'none' }} className="w-full h-full items-center justify-center bg-[#070e24] text-[#00e5a3]">
-              <ShieldCheck className="w-8 h-8 stroke-[2.2]" />
-            </div>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="CHECK Before You Buy"
+                className="w-full h-full object-contain rounded-2xl"
+              />
+            ) : (
+              <ShieldCheck className="w-8 h-8 text-[#00e5a3] stroke-[2.2]" />
+            )}
           </div>
 
           <div className="space-y-1.5 max-w-xs mx-auto">

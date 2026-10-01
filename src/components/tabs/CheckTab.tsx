@@ -14,28 +14,36 @@ import {
   AlertCircle,
   Clock,
   HelpCircle,
-  RotateCcw
+  RotateCcw,
+  FileText,
+  Bot,
+  Video,
+  ShoppingBag,
+  Search,
+  MessageSquare,
+  Mail,
+  Globe,
+  MoreHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { ErrorStateCard, ErrorStateType } from '../ErrorStateCard';
-import { BrandLogoUploadCard } from '../BrandLogoUploadCard';
 import { useBrandLogo } from '../../context/LogoContext';
 
 export const SOURCES = [
-  { id: 'AI', label: 'AI', emoji: '🤖' },
-  { id: 'TikTok', label: 'TikTok', emoji: '📱' },
-  { id: 'Instagram', label: 'Instagram', emoji: '📸' },
-  { id: 'Marketplace', label: 'Marketplace', emoji: '🛒' },
-  { id: 'Google', label: 'Google', emoji: '🔎' },
-  { id: 'Message', label: 'Message', emoji: '💬' },
-  { id: 'Email', label: 'Email', emoji: '📧' },
-  { id: 'Website', label: 'Website', emoji: '🌐' },
-  { id: 'Other', label: 'Other', emoji: '❓' },
+  { id: 'AI', label: 'AI', icon: Bot },
+  { id: 'TikTok', label: 'TikTok', icon: Video },
+  { id: 'Instagram', label: 'Instagram', icon: Camera },
+  { id: 'Marketplace', label: 'Marketplace', icon: ShoppingBag },
+  { id: 'Google', label: 'Google', icon: Search },
+  { id: 'Message', label: 'Message', icon: MessageSquare },
+  { id: 'Email', label: 'Email', icon: Mail },
+  { id: 'Website', label: 'Website', icon: Globe },
+  { id: 'Other', label: 'Other', icon: MoreHorizontal },
 ] as const;
 
 export type SourceType = (typeof SOURCES)[number]['id'];
-export type InputMode = 'screenshot' | 'link' | 'paste' | 'camera';
+export type InputMode = 'screenshot' | 'camera' | 'link' | 'paste' | 'document';
 
 interface CheckState {
   mode: InputMode;
@@ -79,6 +87,7 @@ export const CheckTab: React.FC = () => {
   const [textValue, setTextValue] = useState('');
   const [uploadedImage, setUploadedImage] = useState<{ name: string; url: string } | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<{ name: string; url: string } | null>(null);
+  const [uploadedDocument, setUploadedDocument] = useState<{ name: string; url: string; size?: string } | null>(null);
 
   // Analysis simulation state (PROMPT 6)
   const [analysisStepIndex, setAnalysisStepIndex] = useState(0);
@@ -99,9 +108,10 @@ export const CheckTab: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Hidden native file/camera inputs
+  // Hidden native file/camera/document inputs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   // Start check flow from Home
   const handleStartCheck = (initialMode: InputMode = 'screenshot') => {
@@ -155,6 +165,12 @@ export const CheckTab: React.FC = () => {
       const hasValidExt = /\.(png|jpe?g|webp|gif|heic)$/i.test(file.name);
 
       if (!validTypes.includes(file.type) && !hasValidExt) {
+        // If user uploaded a document / PDF while in screenshot mode, seamlessly route to document!
+        if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+          handleDocumentUpload(e);
+          setSelectedMode('document');
+          return;
+        }
         setActiveError('unsupported_file');
         setCustomErrorMessage(`"${file.name}" is not a supported image file. Please upload a screenshot in PNG, JPG, or WebP format.`);
         setFlowStep('error');
@@ -165,6 +181,33 @@ export const CheckTab: React.FC = () => {
       reader.onload = () => {
         const base64 = reader.result as string;
         setUploadedImage({ name: file.name, url: base64 });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle native file selection for Document / PDF
+  const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const isText = file.type.startsWith('text/') || /\.(txt|md|csv)$/i.test(file.name);
+      const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+
+      if (!isPdf && !isText && !isImage) {
+        setActiveError('unsupported_file');
+        setCustomErrorMessage(`"${file.name}" is not a supported document format. Please upload a PDF, image, or text document.`);
+        setFlowStep('error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        const formattedSize = file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${Math.round(file.size / 1024)} KB`;
+        setUploadedDocument({ name: file.name, url: base64, size: formattedSize });
       };
       reader.readAsDataURL(file);
     }
@@ -187,12 +230,28 @@ export const CheckTab: React.FC = () => {
   const validateCurrentInput = (): ErrorStateType | null => {
     if (selectedMode === 'screenshot') {
       if (uploadedImage) return null;
+      if (capturedPhoto) {
+        setSelectedMode('camera');
+        return null;
+      }
+      if (uploadedDocument) {
+        setSelectedMode('document');
+        return null;
+      }
       if (textValue.trim().length >= 3) {
         setSelectedMode('paste');
         return null;
       }
       if (urlValue.trim().length >= 4) {
         setSelectedMode('link');
+        return null;
+      }
+      return 'no_input';
+    }
+    if (selectedMode === 'camera') {
+      if (capturedPhoto) return null;
+      if (uploadedImage) {
+        setSelectedMode('screenshot');
         return null;
       }
       return 'no_input';
@@ -228,10 +287,14 @@ export const CheckTab: React.FC = () => {
       if (trimmed.length < 3) return 'insufficient_info';
       return null;
     }
-    if (selectedMode === 'camera') {
-      if (capturedPhoto) return null;
+    if (selectedMode === 'document') {
+      if (uploadedDocument) return null;
       if (uploadedImage) {
         setSelectedMode('screenshot');
+        return null;
+      }
+      if (textValue.trim().length >= 3) {
+        setSelectedMode('paste');
         return null;
       }
       return 'no_input';
@@ -299,6 +362,14 @@ export const CheckTab: React.FC = () => {
       value = uploadedImage.name;
       fileName = uploadedImage.name;
       previewUrl = uploadedImage.url;
+    } else if (selectedMode === 'camera' && capturedPhoto) {
+      value = capturedPhoto.name;
+      fileName = capturedPhoto.name;
+      previewUrl = capturedPhoto.url;
+    } else if (selectedMode === 'document' && uploadedDocument) {
+      value = uploadedDocument.name;
+      fileName = uploadedDocument.name;
+      previewUrl = uploadedDocument.url;
     } else if (selectedMode === 'link') {
       const trimmed = urlValue.trim() || textValue.trim();
       value = trimmed;
@@ -307,10 +378,6 @@ export const CheckTab: React.FC = () => {
       }
     } else if (selectedMode === 'paste') {
       value = textValue.trim() || urlValue.trim();
-    } else if (selectedMode === 'camera' && capturedPhoto) {
-      value = capturedPhoto.name;
-      fileName = capturedPhoto.name;
-      previewUrl = capturedPhoto.url;
     }
 
     setCurrentCheck({
@@ -348,6 +415,7 @@ export const CheckTab: React.FC = () => {
         inputType: selectedMode,
         content: value,
         imageBase64: previewUrl && previewUrl.startsWith('data:') ? previewUrl : undefined,
+        mimeType: selectedMode === 'document' && previewUrl?.includes('application/pdf') ? 'application/pdf' : undefined,
         sourceCategory: finalSource,
       }),
       signal: controller.signal,
@@ -560,9 +628,9 @@ export const CheckTab: React.FC = () => {
 
   // Helper to format source display
   const getSourceDisplay = (sourceId: SourceType | null) => {
-    if (!sourceId) return { emoji: '❓', label: 'Not specified' };
+    if (!sourceId) return { label: 'Not specified', icon: MoreHorizontal };
     const found = SOURCES.find((s) => s.id === sourceId);
-    return found ? { emoji: found.emoji, label: found.label } : { emoji: '❓', label: sourceId };
+    return found ? { label: found.label, icon: found.icon } : { label: sourceId, icon: MoreHorizontal };
   };
 
   // ---------------------------------------------------------------------------
@@ -574,15 +642,17 @@ export const CheckTab: React.FC = () => {
         {/* Top Header Section with Brand Lockup */}
         <section className="pt-2 px-1 space-y-3">
           <div className="flex items-center gap-3.5">
-            {logoUrl && (
-              <div className="w-14 h-14 rounded-2xl bg-[#070e24] p-1 border border-slate-800/40 shadow-xs shrink-0 overflow-hidden flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-[#070e24] p-1 border border-slate-800/40 shadow-xs shrink-0 overflow-hidden flex items-center justify-center">
+              {logoUrl ? (
                 <img
                   src={logoUrl}
-                  alt="CHECK Logo"
+                  alt="Official CHECK Logo"
                   className="w-full h-full object-contain rounded-xl"
                 />
-              </div>
-            )}
+              ) : (
+                <ShieldCheck className="w-7 h-7 text-[#00e5a3] stroke-[2.2]" />
+              )}
+            </div>
             <div className="space-y-1">
               <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#070e24] bg-slate-100 px-3 py-1 rounded-full border border-slate-200/80 tracking-wider uppercase">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#00e5a3] shadow-[0_0_6px_rgba(0,229,163,0.8)]" />
@@ -612,7 +682,7 @@ export const CheckTab: React.FC = () => {
           </button>
         </section>
 
-        {/* Three Input Choices */}
+        {/* Five Input Choices */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-extrabold text-[#070e24] uppercase tracking-wider">
@@ -621,18 +691,30 @@ export const CheckTab: React.FC = () => {
             <span className="text-xs text-slate-400 font-medium">Tap to start</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             {/* Choice 1: Screenshot */}
             <button
               type="button"
               onClick={() => handleStartCheck('screenshot')}
               className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group"
             >
-              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="camera">📸</span>
+              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="screenshot">📸</span>
               <span className="text-xs font-bold tracking-tight text-slate-900">Screenshot</span>
+              <span className="text-[10px] text-slate-400 font-medium">Image upload</span>
             </button>
 
-            {/* Choice 2: Link */}
+            {/* Choice 2: Photo Capture */}
+            <button
+              type="button"
+              onClick={() => handleStartCheck('camera')}
+              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group"
+            >
+              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="camera">📷</span>
+              <span className="text-xs font-bold tracking-tight text-slate-900">Photo Capture</span>
+              <span className="text-[10px] text-slate-400 font-medium">Camera snap</span>
+            </button>
+
+            {/* Choice 3: Link */}
             <button
               type="button"
               onClick={() => handleStartCheck('link')}
@@ -640,58 +722,80 @@ export const CheckTab: React.FC = () => {
             >
               <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="link">🔗</span>
               <span className="text-xs font-bold tracking-tight text-slate-900">Link</span>
+              <span className="text-[10px] text-slate-400 font-medium">Store URL</span>
             </button>
 
-            {/* Choice 3: Paste */}
+            {/* Choice 4: Paste */}
             <button
               type="button"
               onClick={() => handleStartCheck('paste')}
               className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group"
             >
               <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="clipboard">📋</span>
-              <span className="text-xs font-bold tracking-tight text-slate-900">Paste</span>
+              <span className="text-xs font-bold tracking-tight text-slate-900">Paste Text</span>
+              <span className="text-[10px] text-slate-400 font-medium">Ad / fine print</span>
+            </button>
+
+            {/* Choice 5: Document / PDF */}
+            <button
+              type="button"
+              onClick={() => handleStartCheck('document')}
+              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group col-span-2 sm:col-span-1"
+            >
+              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="document">📄</span>
+              <span className="text-xs font-bold tracking-tight text-slate-900">Document / PDF</span>
+              <span className="text-[10px] text-slate-400 font-medium">Receipts & specs</span>
             </button>
           </div>
         </section>
 
-        {/* Brand Logo Upload / Manager Section on Home Page */}
-        <BrandLogoUploadCard />
-
-        {/* “Where did you find it?” section with selectable chips */}
-        <section className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] space-y-3.5">
-          <div className="flex items-center justify-between">
+        {/* WHERE DID YOU FIND IT? section */}
+        <section className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-3.5">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Where did you find it?
+              <h2 className="text-[11px] font-black tracking-wider uppercase text-slate-500">
+                WHERE DID YOU FIND IT?
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Helps spot platform-specific return traps, drop-ship markups, and fake reviews.
+              <p className="text-xs text-slate-700 font-medium mt-0.5">
+                Tell CHECK where this offer came from.
               </p>
             </div>
             {selectedSource && (
-              <div className="shrink-0 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200/70 flex items-center gap-1">
-                <span>{getSourceDisplay(selectedSource).emoji}</span>
+              <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200/80 text-[#070e24] text-[11px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00e5a3] shadow-[0_0_6px_rgba(0,229,163,0.8)]" />
                 <span>{selectedSource}</span>
               </div>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
             {SOURCES.map((source) => {
               const isSelected = selectedSource === source.id;
+              const Icon = source.icon;
               return (
                 <button
                   key={source.id}
                   type="button"
                   onClick={() => setSelectedSource(source.id)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95 min-h-[38px] flex items-center gap-1.5 ${
+                  aria-pressed={isSelected}
+                  className={`group relative flex items-center justify-center gap-1.5 py-2.5 px-1.5 sm:px-2 rounded-xl text-xs font-semibold transition-all duration-150 min-h-[42px] select-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#070e24] ${
                     isSelected
-                      ? 'bg-[#070e24] text-white shadow-xs scale-[1.02] border border-slate-800 ring-2 ring-[#00e5a3]/30'
-                      : 'bg-slate-100/90 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                      ? 'bg-[#070e24] text-white border border-[#070e24] shadow-xs ring-1.5 ring-[#00e5a3]/40'
+                      : 'bg-slate-50 hover:bg-slate-100/90 text-slate-700 hover:text-slate-900 border border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
-                  <span>{source.emoji}</span>
-                  <span>{source.label}</span>
+                  <Icon
+                    className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                      isSelected ? 'text-[#00e5a3]' : 'text-slate-400 group-hover:text-slate-600'
+                    }`}
+                    strokeWidth={1.8}
+                  />
+                  <span className="truncate tracking-tight text-[11px] sm:text-xs">
+                    {source.label}
+                  </span>
+                  {isSelected && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00e5a3] shadow-[0_0_5px_rgba(0,229,163,0.9)] shrink-0" />
+                  )}
                 </button>
               );
             })}
@@ -734,10 +838,10 @@ export const CheckTab: React.FC = () => {
           </button>
 
           {selectedSource && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium">
               <span className="text-slate-400">Source:</span>
               <span className="font-bold text-slate-900">
-                {getSourceDisplay(selectedSource).emoji} {selectedSource}
+                {selectedSource}
               </span>
             </div>
           )}
@@ -1081,6 +1185,101 @@ export const CheckTab: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Choice 5: Document / PDF */}
+          <div
+            className={`rounded-3xl border transition-all overflow-hidden ${
+              selectedMode === 'document'
+                ? 'bg-white border-[#070e24] shadow-md ring-2 ring-[#00e5a3]/30'
+                : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-slate-300'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedMode('document')}
+              className="w-full text-left p-4 sm:p-5 flex items-start gap-3.5"
+            >
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl transition-colors ${
+                  selectedMode === 'document'
+                    ? 'bg-[#070e24] text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700'
+                }`}
+              >
+                📄
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Upload Document / PDF
+                  </h3>
+                  {selectedMode === 'document' && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200/80">
+                      <Check className="w-3 h-3 text-[#00e5a3] stroke-[3]" />
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Receipts, contracts, invoices, specifications, or policy PDFs.
+                </p>
+              </div>
+            </button>
+
+            {selectedMode === 'document' && (
+              <div className="px-4 pb-4 sm:px-5 sm:pb-5 pt-1 space-y-3 border-t border-slate-100">
+                <input
+                  ref={documentInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf,text/*,.txt,.md"
+                  onChange={handleDocumentUpload}
+                  className="hidden"
+                />
+
+                {uploadedDocument ? (
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-800 border border-teal-200 flex items-center justify-center shrink-0">
+                        <FileText className="w-6 h-6 text-teal-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 block truncate">
+                          {uploadedDocument.name}
+                        </span>
+                        <span className="text-[11px] text-teal-700 font-semibold flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          Document ready {uploadedDocument.size ? `(${uploadedDocument.size})` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUploadedDocument(null)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-200 rounded-lg transition-colors"
+                      aria-label="Remove document"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div
+                      onClick={() => documentInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-200 hover:border-teal-500/60 bg-slate-50/70 hover:bg-teal-50/20 rounded-2xl p-5 text-center cursor-pointer transition-colors"
+                    >
+                      <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
+                      <span className="text-xs font-bold text-slate-800 block">
+                        Tap to choose PDF or document
+                      </span>
+                      <span className="text-[11px] text-slate-400 mt-0.5 block">
+                        Supports PDF, TXT, MD
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Advance to Step 2: Source Selection */}
@@ -1129,15 +1328,17 @@ export const CheckTab: React.FC = () => {
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-base shrink-0">
               {selectedMode === 'screenshot' && '📸'}
+              {selectedMode === 'camera' && '📷'}
               {selectedMode === 'link' && '🔗'}
               {selectedMode === 'paste' && '📋'}
-              {selectedMode === 'camera' && '📷'}
+              {selectedMode === 'document' && '📄'}
             </span>
             <span className="truncate font-semibold text-slate-800">
               {selectedMode === 'screenshot' && (uploadedImage?.name || 'Screenshot provided')}
+              {selectedMode === 'camera' && (capturedPhoto?.name || 'Photo captured')}
               {selectedMode === 'link' && (urlValue || 'Link provided')}
               {selectedMode === 'paste' && (textValue.slice(0, 38) + (textValue.length > 38 ? '...' : ''))}
-              {selectedMode === 'camera' && (capturedPhoto?.name || 'Photo captured')}
+              {selectedMode === 'document' && (uploadedDocument?.name || 'Document / PDF provided')}
             </span>
           </div>
           <button
@@ -1150,59 +1351,70 @@ export const CheckTab: React.FC = () => {
         </div>
 
         {/* Heading Prompt */}
-        <div className="px-1">
+        <div className="px-1 space-y-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 block">
+            Step 2 of 2
+          </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 leading-tight">
-            Where did you find this?
+            WHERE DID YOU FIND IT?
           </h2>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            Selecting where you saw this helps spot platform-specific drop-shipping, return fees, and fake reviews.
+            Tell CHECK where this offer came from.
           </p>
         </div>
 
         {/* Chips Grid */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] space-y-4">
+        <div className="bg-white rounded-3xl border border-slate-200/90 p-4 sm:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] space-y-3.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <span className="text-[11px] font-black tracking-wider uppercase text-slate-500">
               Select platform:
             </span>
             {selectedSource && (
               <button
                 type="button"
                 onClick={() => setSelectedSource(null)}
-                className="text-[11px] font-semibold text-slate-400 hover:text-slate-600"
+                className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors"
               >
                 Clear selection
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-2 sm:gap-2.5">
             {SOURCES.map((source) => {
               const isSelected = selectedSource === source.id;
+              const Icon = source.icon;
               return (
                 <button
                   key={source.id}
                   type="button"
                   onClick={() => setSelectedSource(isSelected ? null : source.id)}
-                  className={`p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[76px] active:scale-95 ${
+                  aria-pressed={isSelected}
+                  className={`group relative flex items-center justify-center gap-1.5 py-2.5 px-1.5 sm:px-2 rounded-xl text-xs font-semibold transition-all duration-150 min-h-[42px] select-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#070e24] ${
                     isSelected
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/10 scale-[1.02]'
-                      : 'bg-slate-50/70 hover:bg-slate-100 text-slate-800 border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-[#070e24] text-white border border-[#070e24] shadow-xs ring-1.5 ring-[#00e5a3]/40'
+                      : 'bg-slate-50 hover:bg-slate-100/90 text-slate-700 hover:text-slate-900 border border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-2xl" role="img" aria-label={source.label}>
-                    {source.emoji}
-                  </span>
-                  <span className="text-xs font-bold tracking-tight">
+                  <Icon
+                    className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                      isSelected ? 'text-[#00e5a3]' : 'text-slate-400 group-hover:text-slate-600'
+                    }`}
+                    strokeWidth={1.8}
+                  />
+                  <span className="truncate tracking-tight text-[11px] sm:text-xs">
                     {source.label}
                   </span>
+                  {isSelected && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00e5a3] shadow-[0_0_5px_rgba(0,229,163,0.9)] shrink-0" />
+                  )}
                 </button>
               );
             })}
           </div>
 
           <p className="text-[11px] text-slate-400 text-center pt-1">
-            Tap a chip to select or switch. No personal or account info is required.
+            Tap to select or switch. No personal or account info is required.
           </p>
         </div>
 
@@ -1215,7 +1427,7 @@ export const CheckTab: React.FC = () => {
           >
             {selectedSource ? (
               <>
-                <span>Run Check for {getSourceDisplay(selectedSource).emoji} {selectedSource}</span>
+                <span>Run Check for {selectedSource}</span>
                 <ArrowRight className="w-4 h-4 text-[#00e5a3]" />
               </>
             ) : (
@@ -1425,7 +1637,7 @@ export const CheckTab: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Source:</span>
                   <span className="font-bold text-slate-900">
-                    {getSourceDisplay(currentCheck?.source ?? null).emoji} {getSourceDisplay(currentCheck?.source ?? null).label}
+                    {getSourceDisplay(currentCheck?.source ?? null).label}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
