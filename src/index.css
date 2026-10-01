@@ -1,7 +1,22 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-navy: #070e24;
+  --color-brand-navy-light: #0d1838;
+  --color-brand-teal: #00e5a3;
+  --color-brand-teal-dark: #00b882;
+}
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #0f172a;
+    background-color: #f8fafc;
+  }
+
+  ::selection {
+    background-color: #00e5a3;
+    color: #070e24;
   }
 }
+

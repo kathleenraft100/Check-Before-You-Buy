@@ -23,8 +23,10 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { SourceType } from './CheckTab';
+import { useBrandLogo } from '../../context/LogoContext';
 
 export const YouTab: React.FC = () => {
+  const { logoUrl } = useBrandLogo();
   // Usage quota state (Synced with localStorage cb_usage_count_v1)
   const [usageCount, setUsageCount] = useState<number>(() => {
     try {
@@ -619,6 +621,28 @@ export const YouTab: React.FC = () => {
               {/* ---------------- MODAL CONTENT: ABOUT ---------------- */}
               {activeModal === 'about' && (
                 <div className="space-y-3.5 text-xs text-slate-600 leading-relaxed">
+                  <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-slate-950 text-white border border-slate-800 shadow-sm">
+                    <img
+                      src={logoUrl || '/ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg'}
+                      alt="CHECK Before You Buy"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.includes('check-logo.png') && !target.src.startsWith('data:')) {
+                          target.src = '/check-logo.png';
+                        }
+                      }}
+                      className="w-12 h-12 object-contain rounded-xl shrink-0"
+                    />
+                    <div>
+                      <span className="font-black text-base block tracking-tight text-white leading-tight">
+                        CHECK
+                      </span>
+                      <span className="text-[10px] font-bold tracking-widest text-[#00e5a3] uppercase block mt-0.5">
+                        Before You Buy
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
                     <span className="font-bold text-slate-900 block text-sm">
                       Our Consumer Mission

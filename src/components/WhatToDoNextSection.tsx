@@ -251,9 +251,9 @@ Thank you for your assistance.`;
           NEXT BEST STEP CARD
           One concrete verification action
          --------------------------------------------------------------------- */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 text-white shadow-sm space-y-2">
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#070e24] text-white shadow-sm border border-slate-800 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black tracking-widest uppercase text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-md border border-emerald-500/30">
+          <span className="text-[10px] font-black tracking-widest uppercase text-[#00e5a3] bg-teal-950/80 px-2.5 py-0.5 rounded-md border border-[#00e5a3]/30">
             NEXT BEST STEP
           </span>
           <span className="text-[11px] text-slate-400 font-medium">
@@ -293,14 +293,14 @@ Thank you for your assistance.`;
                 onClick={() => toggleCheck(item.id)}
                 className={`w-full text-left p-3 sm:p-3.5 rounded-2xl border transition-all flex items-start gap-3 active:scale-[0.99] ${
                   isChecked
-                    ? 'bg-emerald-50/50 border-emerald-200/90 text-slate-900'
+                    ? 'bg-teal-50/60 border-teal-200/90 text-slate-900'
                     : 'bg-slate-50/70 hover:bg-slate-50 border-slate-200/80 text-slate-800'
                 }`}
               >
                 <div
                   className={`w-5 h-5 rounded-md mt-0.5 flex items-center justify-center shrink-0 transition-colors ${
                     isChecked
-                      ? 'bg-emerald-600 text-white'
+                      ? 'bg-[#00e5a3] text-[#070e24]'
                       : 'border-2 border-slate-300 bg-white'
                   }`}
                 >
@@ -344,11 +344,11 @@ Thank you for your assistance.`;
         <button
           type="button"
           onClick={() => setAskSellerOpen(true)}
-          className="w-full min-h-[48px] rounded-2xl bg-white hover:bg-slate-50 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 border border-slate-200/90 hover:border-slate-300 shadow-2xs active:scale-[0.985] transition-all"
+          className="w-full min-h-[50px] rounded-2xl bg-white hover:bg-slate-50 text-[#070e24] font-black text-xs sm:text-sm flex items-center justify-center gap-2 border-2 border-[#070e24] shadow-xs active:scale-[0.985] transition-all group"
         >
-          <MessageSquare className="w-4 h-4 text-emerald-600" />
-          <span>ASK THE SELLER</span>
-          <span className="text-slate-400 font-normal">· Generate verification question</span>
+          <MessageSquare className="w-4 h-4 text-teal-600 group-hover:scale-110 transition-transform" />
+          <span className="tracking-wide">ASK THE SELLER</span>
+          <span className="text-slate-400 font-medium text-xs">· Inquiry script</span>
         </button>
       </div>
 
@@ -379,14 +379,14 @@ Thank you for your assistance.`;
 
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center justify-center text-lg font-bold">
+                  <div className="w-10 h-10 rounded-2xl bg-[#070e24] text-[#00e5a3] border border-slate-800 flex items-center justify-center text-lg font-bold shadow-xs">
                     💬
                   </div>
                   <div>
-                    <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">
+                    <span className="text-[11px] font-bold text-teal-900 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/80 uppercase tracking-wider block">
                       Neutral Buyer Inquiry
                     </span>
-                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight leading-tight">
+                    <h3 className="text-lg font-extrabold text-slate-900 tracking-tight leading-tight mt-0.5">
                       Question to Ask the Seller
                     </h3>
                   </div>
@@ -407,7 +407,7 @@ Thank you for your assistance.`;
               </p>
 
               {/* Message Box */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 font-sans text-xs text-slate-800 whitespace-pre-line leading-relaxed selection:bg-emerald-200">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 font-sans text-xs text-slate-800 whitespace-pre-line leading-relaxed selection:bg-teal-200">
                 {sellerQuestionText}
               </div>
 
@@ -416,11 +416,11 @@ Thank you for your assistance.`;
                 <button
                   type="button"
                   onClick={handleCopyQuestion}
-                  className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-xs"
+                  className="w-full h-12 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-[0.985] transition-all shadow-xs border border-slate-800"
                 >
                   {hasCopiedQuestion ? (
                     <>
-                      <Check className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+                      <Check className="w-4 h-4 text-[#00e5a3] stroke-[2.5]" />
                       <span>Copied to Clipboard!</span>
                     </>
                   ) : (

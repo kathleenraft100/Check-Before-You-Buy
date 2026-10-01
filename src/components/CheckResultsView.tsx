@@ -407,13 +407,13 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
     switch (v) {
       case 'reasonable':
         return {
-          bg: 'bg-emerald-50/70',
-          border: 'border-emerald-200',
-          textColor: 'text-emerald-950',
-          badgeBg: 'bg-emerald-100/80 text-emerald-900 border-emerald-300/80',
-          confidenceBadge: 'bg-emerald-100 text-emerald-800',
+          bg: 'bg-teal-50/60',
+          border: 'border-teal-200',
+          textColor: 'text-slate-950',
+          badgeBg: 'bg-teal-100/90 text-teal-950 border-teal-300/80',
+          confidenceBadge: 'bg-teal-100 text-teal-900',
           icon: CheckCircle2,
-          iconColor: 'text-emerald-600',
+          iconColor: 'text-teal-600',
         };
       case 'pause':
         return {
@@ -469,7 +469,7 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
             className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200/90 px-3 py-1.5 rounded-full shadow-2xs transition-all active:scale-95"
             title="Share Check Summary"
           >
-            <Share2 className="w-3.5 h-3.5 text-emerald-600" />
+            <Share2 className="w-3.5 h-3.5 text-teal-600" />
             <span>Share</span>
           </button>
 
@@ -479,7 +479,7 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
               {currentSource === 'AI' ? (
                 <>
                   <span>🤖</span>
-                  <span className="text-indigo-800 font-bold">AI Recommendation</span>
+                  <span className="text-[#070e24] font-bold">AI Recommendation</span>
                 </>
               ) : (
                 <span>{currentSource || 'Website'}</span>
@@ -506,7 +506,7 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
             </span>
             <div className="flex items-center gap-2">
               <span className="text-2xl">{currentData.emoji}</span>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-[#070e24]">
                 {currentData.verdictTitle}
               </h1>
             </div>
@@ -521,14 +521,14 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
         </div>
 
         {/* Short Plain-English Explanation */}
-        <p className="text-sm text-slate-700 leading-relaxed font-medium bg-white/80 p-4 rounded-2xl border border-white/60 shadow-2xs">
+        <p className="text-sm text-slate-800 leading-relaxed font-medium bg-white/90 p-4 rounded-2xl border border-white/60 shadow-2xs">
           {currentData.explanation}
         </p>
 
         {/* Context badge */}
         <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
           <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
             <span>Pre-checkout evaluation report</span>
           </span>
           <span className="text-[11px] text-slate-400">No numerical scores used</span>
@@ -550,14 +550,14 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
       <button
         type="button"
         onClick={() => handleOpenExplain('pricing')}
-        className="w-full p-4 rounded-3xl bg-white border border-slate-200/90 shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:border-emerald-300 hover:shadow-xs transition-all flex items-center justify-between text-left group"
+        className="w-full p-4 rounded-3xl bg-white border border-slate-200/90 shadow-[0_2px_12px_rgba(0,0,0,0.02)] hover:border-[#00e5a3]/70 hover:shadow-xs transition-all flex items-center justify-between text-left group"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center justify-center text-lg font-bold shrink-0 shadow-2xs">
+          <div className="w-10 h-10 rounded-2xl bg-[#070e24] text-[#00e5a3] border border-slate-800 flex items-center justify-center text-lg font-bold shrink-0 shadow-2xs">
             💬
           </div>
           <div className="min-w-0">
-            <span className="text-sm font-bold text-slate-900 group-hover:text-emerald-800 transition-colors block truncate">
+            <span className="text-sm font-bold text-slate-900 group-hover:text-[#070e24] transition-colors block truncate">
               What does this really mean?
             </span>
             <span className="text-xs text-slate-500 block truncate">
@@ -566,9 +566,9 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
           </div>
         </div>
         <div className="shrink-0 pl-2">
-          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200/60 flex items-center gap-1">
+          <span className="text-xs font-bold text-[#070e24] bg-teal-50 px-2.5 py-1 rounded-xl border border-teal-200/70 flex items-center gap-1">
             <span>Translate</span>
-            <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+            <ChevronDown className="w-3.5 h-3.5 -rotate-90 text-[#070e24]" />
           </span>
         </div>
       </button>
@@ -609,17 +609,28 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
                     <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
                       <span>{sec.data.title}</span>
                     </h3>
-                    <span
-                      className={`text-xs font-semibold block mt-0.5 truncate ${
-                        sec.data.isPositive
-                          ? 'text-emerald-700'
-                          : sec.data.isWarning
-                          ? 'text-amber-700'
-                          : 'text-rose-700'
-                      }`}
-                    >
-                      {sec.data.statusText}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                          sec.data.isPositive
+                            ? 'bg-[#00e5a3]'
+                            : sec.data.isWarning
+                            ? 'bg-amber-500'
+                            : 'bg-rose-500'
+                        }`}
+                      />
+                      <span
+                        className={`text-xs font-bold truncate ${
+                          sec.data.isPositive
+                            ? 'text-teal-900'
+                            : sec.data.isWarning
+                            ? 'text-amber-900'
+                            : 'text-rose-900'
+                        }`}
+                      >
+                        {sec.data.statusText}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -833,16 +844,16 @@ Based on the information provided · Pre-purchase safety evaluation with Check B
           onClick={() => setShareModalOpen(true)}
           className="w-full h-12 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-slate-200/90 shadow-2xs transition-all active:scale-[0.985]"
         >
-          <Share2 className="w-4 h-4 text-emerald-600" />
+          <Share2 className="w-4 h-4 text-teal-600" />
           <span>Share Check Summary</span>
         </button>
 
         <button
           type="button"
           onClick={onStartNewCheck}
-          className="w-full h-14 rounded-2xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10"
+          className="w-full h-14 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-extrabold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all shadow-md shadow-[#070e24]/15 border border-slate-800"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-4 h-4 text-[#00e5a3]" />
           <span>Check Another Item</span>
         </button>
 

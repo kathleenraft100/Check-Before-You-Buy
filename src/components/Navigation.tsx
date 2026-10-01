@@ -49,29 +49,29 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
               aria-selected={isActive}
               aria-label={`${tab.label} — ${tab.caption}`}
               onClick={() => onSelectTab(tab.id)}
-              className="relative flex flex-col items-center justify-center h-full min-h-[48px] py-1 select-none transition-transform active:scale-95 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 rounded-2xl"
+              className="relative flex flex-col items-center justify-center h-full min-h-[48px] py-1 select-none transition-transform active:scale-95 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#070e24] focus-visible:ring-offset-2 rounded-2xl"
             >
               {isActive && (
                 <motion.div
                   layoutId="activeTabIndicator"
-                  className="absolute inset-x-2 inset-y-1.5 bg-emerald-50/80 rounded-2xl -z-10"
-                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  className="absolute inset-x-2 inset-y-1.5 bg-[#070e24] rounded-2xl -z-10 shadow-xs border border-slate-800/60"
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
               )}
 
               <div
                 className={`transition-colors duration-150 p-1 rounded-xl ${
                   isActive
-                    ? 'text-emerald-800'
-                    : 'text-slate-500 group-hover:text-slate-700'
+                    ? 'text-[#00e5a3]'
+                    : 'text-slate-400 group-hover:text-slate-600'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+                <Icon className={`w-5 h-5 ${isActive ? 'stroke-[2.4]' : 'stroke-[1.8]'}`} />
               </div>
 
               <span
                 className={`text-[11px] font-bold tracking-wider uppercase mt-0.5 transition-colors duration-150 ${
-                  isActive ? 'text-emerald-950 font-black' : 'text-slate-600 group-hover:text-slate-800'
+                  isActive ? 'text-white font-black' : 'text-slate-500 group-hover:text-slate-700'
                 }`}
               >
                 {tab.label}

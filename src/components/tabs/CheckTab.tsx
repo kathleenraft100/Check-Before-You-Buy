@@ -19,6 +19,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { ErrorStateCard, ErrorStateType } from '../ErrorStateCard';
+import { BrandLogoUploadCard } from '../BrandLogoUploadCard';
+import { useBrandLogo } from '../../context/LogoContext';
 
 export const SOURCES = [
   { id: 'AI', label: 'AI', emoji: '🤖' },
@@ -52,7 +54,17 @@ const ANALYSIS_STEPS = [
   '🛡️ Building your safety checklist…',
 ];
 
+// Realistic, differentiated timeline for each checkpoint to reflect genuine real-time evaluation
+const STEP_DURATIONS_MS = [
+  1600, // 🔎 Reading the offer… (content parsing & OCR intake)
+  2200, // 🧠 Looking for important details… (seller signals & specifications)
+  1900, // 💰 Checking price signals… (market comp & artificial markdown check)
+  2400, // 🚩 Looking for red flags… (payment safety & return friction)
+  1800, // 🛡️ Building your safety checklist… (assembling personalized advice)
+];
+
 export const CheckTab: React.FC = () => {
+  const { logoUrl } = useBrandLogo();
   // Flow steps: 'home' -> 'input' -> 'source' -> 'analyzing' -> 'ready' | 'error'
   const [flowStep, setFlowStep] = useState<'home' | 'input' | 'source' | 'analyzing' | 'ready' | 'error'>('home');
   
@@ -171,23 +183,58 @@ export const CheckTab: React.FC = () => {
     }
   };
 
-  // Validate current input and return specific error if invalid
+  // Validate current input and return specific error if invalid (with smart adaptation)
   const validateCurrentInput = (): ErrorStateType | null => {
     if (selectedMode === 'screenshot') {
-      return uploadedImage ? null : 'no_input';
+      if (uploadedImage) return null;
+      if (textValue.trim().length >= 3) {
+        setSelectedMode('paste');
+        return null;
+      }
+      if (urlValue.trim().length >= 4) {
+        setSelectedMode('link');
+        return null;
+      }
+      return 'no_input';
     }
     if (selectedMode === 'link') {
-      if (!urlValue.trim()) return 'no_input';
-      if (!isValidUrl(urlValue)) return 'invalid_url';
+      const trimmed = urlValue.trim();
+      if (!trimmed) {
+        if (textValue.trim().length >= 3) {
+          setSelectedMode('paste');
+          return null;
+        }
+        return 'no_input';
+      }
+      // If user typed product description or keywords (e.g. "Sony headphones $100 marketplace"),
+      // seamlessly adapt it as valid offer text so they are never blocked by an invalid URL error!
+      if (!isValidUrl(trimmed)) {
+        if (trimmed.length >= 3) {
+          return null;
+        }
+        return 'invalid_url';
+      }
       return null;
     }
     if (selectedMode === 'paste') {
-      if (!textValue.trim()) return 'empty_pasted_text';
-      if (textValue.trim().length < 5) return 'insufficient_info';
+      const trimmed = textValue.trim();
+      if (!trimmed) {
+        if (urlValue.trim().length >= 4) {
+          setSelectedMode('link');
+          return null;
+        }
+        return 'empty_pasted_text';
+      }
+      if (trimmed.length < 3) return 'insufficient_info';
       return null;
     }
     if (selectedMode === 'camera') {
-      return capturedPhoto ? null : 'no_input';
+      if (capturedPhoto) return null;
+      if (uploadedImage) {
+        setSelectedMode('screenshot');
+        return null;
+      }
+      return 'no_input';
     }
     return 'no_input';
   };
@@ -253,9 +300,13 @@ export const CheckTab: React.FC = () => {
       fileName = uploadedImage.name;
       previewUrl = uploadedImage.url;
     } else if (selectedMode === 'link') {
-      value = urlValue.trim();
+      const trimmed = urlValue.trim() || textValue.trim();
+      value = trimmed;
+      if (isValidUrl(trimmed) && !trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+        value = `https://${trimmed}`;
+      }
     } else if (selectedMode === 'paste') {
-      value = textValue.trim();
+      value = textValue.trim() || urlValue.trim();
     } else if (selectedMode === 'camera' && capturedPhoto) {
       value = capturedPhoto.name;
       fileName = capturedPhoto.name;
@@ -283,11 +334,11 @@ export const CheckTab: React.FC = () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    // Set 11-second timer to detect "analysis taking too long"
+    // Set 28-second timer to detect "analysis taking longer than usual" (only if genuinely stalled)
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       setIsTakingTooLong(true);
-    }, 11000);
+    }, 28000);
 
     // Initiate real Gemini analysis on the server
     fetch('/api/analyze', {
@@ -414,29 +465,45 @@ export const CheckTab: React.FC = () => {
     setActiveError(null);
   };
 
-  // Run the sequence timer when in 'analyzing' state
+  // Run the sequence timer with authentic, variable step durations
   useEffect(() => {
     if (flowStep !== 'analyzing') return;
 
-    let currentStep = 0;
-    const intervalTime = 700; // 700ms per step for a snappy, pleasant pace
+    let isCancelled = false;
+    let stepTimeout: NodeJS.Timeout | null = null;
+    setAnalysisStepIndex(0);
+    animationDoneRef.current = false;
 
-    const interval = setInterval(() => {
-      currentStep += 1;
-      if (currentStep < ANALYSIS_STEPS.length - 1) {
-        setAnalysisStepIndex(currentStep);
+    // Advance each checkpoint using its individual realistic duration
+    const scheduleStep = (currentIdx: number) => {
+      if (isCancelled) return;
+
+      if (currentIdx < ANALYSIS_STEPS.length - 1) {
+        stepTimeout = setTimeout(() => {
+          if (isCancelled) return;
+          const nextIdx = currentIdx + 1;
+          setAnalysisStepIndex(nextIdx);
+          scheduleStep(nextIdx);
+        }, STEP_DURATIONS_MS[currentIdx]);
       } else {
-        setAnalysisStepIndex(ANALYSIS_STEPS.length - 1);
-        animationDoneRef.current = true;
-        clearInterval(interval);
-        // Only mark complete if the real API result has arrived
-        if (apiResultRef.current) {
-          setIsAnalysisComplete(true);
-        }
+        // Reached final checkpoint (index 4: 🛡️ Building your safety checklist…)
+        stepTimeout = setTimeout(() => {
+          if (isCancelled) return;
+          animationDoneRef.current = true;
+          // If the real Gemini API response has already arrived, finalize immediately
+          if (apiResultRef.current) {
+            setIsAnalysisComplete(true);
+          }
+        }, STEP_DURATIONS_MS[ANALYSIS_STEPS.length - 1]);
       }
-    }, intervalTime);
+    };
 
-    return () => clearInterval(interval);
+    scheduleStep(0);
+
+    return () => {
+      isCancelled = true;
+      if (stepTimeout) clearTimeout(stepTimeout);
+    };
   }, [flowStep]);
 
   // Transition from Analysis completion to Results
@@ -504,38 +571,54 @@ export const CheckTab: React.FC = () => {
   if (flowStep === 'home') {
     return (
       <div className="space-y-6 pb-8">
-        {/* Top Header Section */}
-        <section className="pt-2 px-1 space-y-1.5">
-          <span className="text-sm font-semibold text-emerald-700 tracking-wide uppercase">
-            Before you buy…
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight">
-            Check it first.
-          </h1>
-          <p className="text-base text-slate-500 pt-1 leading-relaxed max-w-sm">
-            Paste a link, upload a screenshot, or show us the offer.
+        {/* Top Header Section with Brand Lockup */}
+        <section className="pt-2 px-1 space-y-3">
+          <div className="flex items-center gap-3.5">
+            {logoUrl && (
+              <div className="w-14 h-14 rounded-2xl bg-[#070e24] p-1 border border-slate-800/40 shadow-xs shrink-0 overflow-hidden flex items-center justify-center">
+                <img
+                  src={logoUrl}
+                  alt="CHECK Logo"
+                  className="w-full h-full object-contain rounded-xl"
+                />
+              </div>
+            )}
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#070e24] bg-slate-100 px-3 py-1 rounded-full border border-slate-200/80 tracking-wider uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00e5a3] shadow-[0_0_6px_rgba(0,229,163,0.8)]" />
+                Pre-Purchase Verification
+              </span>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-[#070e24] leading-tight">
+                Check it before you buy.
+              </h1>
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 leading-relaxed max-w-sm font-medium">
+            Evaluate unfamiliar sellers, spot return traps, and verify deals before completing checkout.
           </p>
         </section>
 
-        {/* Prominent Primary Button */}
+        {/* Prominent Primary CTA Button */}
         <section>
           <button
             type="button"
             onClick={() => handleStartCheck('screenshot')}
-            className="w-full h-15 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white font-bold text-base flex items-center justify-center gap-3 shadow-lg shadow-slate-950/15 hover:shadow-xl hover:shadow-slate-950/20 active:scale-[0.985] transition-all border border-slate-800"
+            className="w-full h-15 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-black text-base flex items-center justify-center gap-3 shadow-xl shadow-[#070e24]/15 hover:shadow-2xl hover:shadow-[#070e24]/20 active:scale-[0.985] transition-all border border-slate-800 group"
           >
-            <span className="text-lg">✨</span>
-            <span className="tracking-wide">CHECK SOMETHING</span>
+            <span className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-[#00e5a3] text-sm font-black group-hover:scale-105 transition-transform">
+              ✓
+            </span>
+            <span className="tracking-wide">START A CHECK</span>
           </button>
         </section>
 
         {/* Three Input Choices */}
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <span className="text-xs font-extrabold text-[#070e24] uppercase tracking-wider">
               Choose how to share:
             </span>
-            <span className="text-xs text-slate-400">Tap to start</span>
+            <span className="text-xs text-slate-400 font-medium">Tap to start</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2.5">
@@ -543,33 +626,36 @@ export const CheckTab: React.FC = () => {
             <button
               type="button"
               onClick={() => handleStartCheck('screenshot')}
-              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[82px] active:scale-95 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 border-slate-200/80 shadow-2xs group"
+              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group"
             >
-              <span className="text-2xl" role="img" aria-label="camera">📸</span>
-              <span className="text-xs font-bold tracking-tight">Screenshot</span>
+              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="camera">📸</span>
+              <span className="text-xs font-bold tracking-tight text-slate-900">Screenshot</span>
             </button>
 
             {/* Choice 2: Link */}
             <button
               type="button"
               onClick={() => handleStartCheck('link')}
-              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[82px] active:scale-95 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 border-slate-200/80 shadow-2xs group"
+              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group"
             >
-              <span className="text-2xl" role="img" aria-label="link">🔗</span>
-              <span className="text-xs font-bold tracking-tight">Link</span>
+              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="link">🔗</span>
+              <span className="text-xs font-bold tracking-tight text-slate-900">Link</span>
             </button>
 
             {/* Choice 3: Paste */}
             <button
               type="button"
               onClick={() => handleStartCheck('paste')}
-              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[82px] active:scale-95 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-800 border-slate-200/80 shadow-2xs group"
+              className="p-3.5 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 min-h-[90px] active:scale-95 bg-white hover:bg-slate-50/80 hover:border-slate-300 text-slate-800 border-slate-200/90 shadow-2xs group"
             >
-              <span className="text-2xl" role="img" aria-label="clipboard">📋</span>
-              <span className="text-xs font-bold tracking-tight">Paste</span>
+              <span className="text-2xl transition-transform group-hover:scale-110" role="img" aria-label="clipboard">📋</span>
+              <span className="text-xs font-bold tracking-tight text-slate-900">Paste</span>
             </button>
           </div>
         </section>
+
+        {/* Brand Logo Upload / Manager Section on Home Page */}
+        <BrandLogoUploadCard />
 
         {/* “Where did you find it?” section with selectable chips */}
         <section className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] space-y-3.5">
@@ -583,8 +669,9 @@ export const CheckTab: React.FC = () => {
               </p>
             </div>
             {selectedSource && (
-              <div className="shrink-0 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60">
-                {getSourceDisplay(selectedSource).emoji} {selectedSource}
+              <div className="shrink-0 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200/70 flex items-center gap-1">
+                <span>{getSourceDisplay(selectedSource).emoji}</span>
+                <span>{selectedSource}</span>
               </div>
             )}
           </div>
@@ -599,7 +686,7 @@ export const CheckTab: React.FC = () => {
                   onClick={() => setSelectedSource(source.id)}
                   className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95 min-h-[38px] flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-slate-900 text-white shadow-xs scale-[1.02]'
+                      ? 'bg-[#070e24] text-white shadow-xs scale-[1.02] border border-slate-800 ring-2 ring-[#00e5a3]/30'
                       : 'bg-slate-100/90 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
                   }`}
                 >
@@ -612,15 +699,15 @@ export const CheckTab: React.FC = () => {
         </section>
 
         {/* Reassurance banner */}
-        <section className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60 text-xs text-slate-500 flex items-center justify-between">
+        <section className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/70 text-xs text-slate-500 flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Private & safe · No account required</span>
+            <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0" />
+            <span>Private verification · Zero affiliate bias</span>
           </span>
           <button
             type="button"
             onClick={() => handleStartCheck('camera')}
-            className="text-slate-800 font-bold hover:text-emerald-700 underline underline-offset-2"
+            className="text-[#070e24] font-bold hover:text-teal-700 underline underline-offset-2"
           >
             Snap photo
           </button>
@@ -675,8 +762,8 @@ export const CheckTab: React.FC = () => {
           <div
             className={`rounded-3xl border transition-all overflow-hidden ${
               selectedMode === 'screenshot'
-                ? 'bg-white border-slate-900 shadow-md ring-2 ring-slate-900/5'
-                : 'bg-white/80 border-slate-200/90 hover:border-slate-300'
+                ? 'bg-white border-[#070e24] shadow-md ring-2 ring-[#00e5a3]/30'
+                : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-slate-300'
             }`}
           >
             <button
@@ -687,8 +774,8 @@ export const CheckTab: React.FC = () => {
               <div
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl transition-colors ${
                   selectedMode === 'screenshot'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-700'
+                    ? 'bg-[#070e24] text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700'
                 }`}
               >
                 📸
@@ -699,7 +786,8 @@ export const CheckTab: React.FC = () => {
                     Upload Screenshot
                   </h3>
                   {selectedMode === 'screenshot' && (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200/80">
+                      <Check className="w-3 h-3 text-[#00e5a3] stroke-[3]" />
                       Selected
                     </span>
                   )}
@@ -734,7 +822,7 @@ export const CheckTab: React.FC = () => {
                         <span className="text-xs font-bold text-slate-900 block truncate">
                           {uploadedImage.name}
                         </span>
-                        <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                        <span className="text-[11px] text-teal-700 font-semibold flex items-center gap-1">
                           <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           Screenshot ready
                         </span>
@@ -753,7 +841,7 @@ export const CheckTab: React.FC = () => {
                   <div className="space-y-2">
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-slate-200 hover:border-slate-400 bg-slate-50/70 hover:bg-slate-100/60 rounded-2xl p-5 text-center cursor-pointer transition-colors"
+                      className="border-2 border-dashed border-slate-200 hover:border-teal-500/60 bg-slate-50/70 hover:bg-teal-50/20 rounded-2xl p-5 text-center cursor-pointer transition-colors"
                     >
                       <Upload className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
                       <span className="text-xs font-bold text-slate-800 block">
@@ -773,8 +861,8 @@ export const CheckTab: React.FC = () => {
           <div
             className={`rounded-3xl border transition-all overflow-hidden ${
               selectedMode === 'link'
-                ? 'bg-white border-slate-900 shadow-md ring-2 ring-slate-900/5'
-                : 'bg-white/80 border-slate-200/90 hover:border-slate-300'
+                ? 'bg-white border-[#070e24] shadow-md ring-2 ring-[#00e5a3]/30'
+                : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-slate-300'
             }`}
           >
             <button
@@ -785,8 +873,8 @@ export const CheckTab: React.FC = () => {
               <div
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl transition-colors ${
                   selectedMode === 'link'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-700'
+                    ? 'bg-[#070e24] text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700'
                 }`}
               >
                 🔗
@@ -797,7 +885,8 @@ export const CheckTab: React.FC = () => {
                     Paste Link
                   </h3>
                   {selectedMode === 'link' && (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200/80">
+                      <Check className="w-3 h-3 text-[#00e5a3] stroke-[3]" />
                       Selected
                     </span>
                   )}
@@ -816,7 +905,7 @@ export const CheckTab: React.FC = () => {
                     value={urlValue}
                     onChange={(e) => setUrlValue(e.target.value)}
                     placeholder="https://... or store link"
-                    className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-3.5 pr-10 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
+                    className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-3.5 pr-10 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00e5a3]/20 focus:border-[#070e24] transition-all"
                   />
                   {urlValue && (
                     <button
@@ -836,8 +925,8 @@ export const CheckTab: React.FC = () => {
           <div
             className={`rounded-3xl border transition-all overflow-hidden ${
               selectedMode === 'paste'
-                ? 'bg-white border-slate-900 shadow-md ring-2 ring-slate-900/5'
-                : 'bg-white/80 border-slate-200/90 hover:border-slate-300'
+                ? 'bg-white border-[#070e24] shadow-md ring-2 ring-[#00e5a3]/30'
+                : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-slate-300'
             }`}
           >
             <button
@@ -848,8 +937,8 @@ export const CheckTab: React.FC = () => {
               <div
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl transition-colors ${
                   selectedMode === 'paste'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-700'
+                    ? 'bg-[#070e24] text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700'
                 }`}
               >
                 📋
@@ -860,7 +949,8 @@ export const CheckTab: React.FC = () => {
                     Paste Text
                   </h3>
                   {selectedMode === 'paste' && (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200/80">
+                      <Check className="w-3 h-3 text-[#00e5a3] stroke-[3]" />
                       Selected
                     </span>
                   )}
@@ -878,7 +968,7 @@ export const CheckTab: React.FC = () => {
                   value={textValue}
                   onChange={(e) => setTextValue(e.target.value)}
                   placeholder="Paste ad caption, direct message offer, or warranty fine print..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all resize-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00e5a3]/20 focus:border-[#070e24] transition-all resize-none"
                 />
 
                 {textValue && (
@@ -900,8 +990,8 @@ export const CheckTab: React.FC = () => {
           <div
             className={`rounded-3xl border transition-all overflow-hidden ${
               selectedMode === 'camera'
-                ? 'bg-white border-slate-900 shadow-md ring-2 ring-slate-900/5'
-                : 'bg-white/80 border-slate-200/90 hover:border-slate-300'
+                ? 'bg-white border-[#070e24] shadow-md ring-2 ring-[#00e5a3]/30'
+                : 'bg-slate-50/60 border-slate-200/80 hover:bg-white hover:border-slate-300'
             }`}
           >
             <button
@@ -912,8 +1002,8 @@ export const CheckTab: React.FC = () => {
               <div
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 text-xl transition-colors ${
                   selectedMode === 'camera'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-700'
+                    ? 'bg-[#070e24] text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700'
                 }`}
               >
                 📷
@@ -924,7 +1014,8 @@ export const CheckTab: React.FC = () => {
                     Take a photo
                   </h3>
                   {selectedMode === 'camera' && (
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#070e24] bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200/80">
+                      <Check className="w-3 h-3 text-[#00e5a3] stroke-[3]" />
                       Selected
                     </span>
                   )}
@@ -997,10 +1088,10 @@ export const CheckTab: React.FC = () => {
           <button
             type="button"
             onClick={handleProceedToSource}
-            className="w-full h-14 rounded-2xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10"
+            className="w-full h-14 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-extrabold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all shadow-md shadow-[#070e24]/15 border border-slate-800"
           >
             <span>Next: Where did you find it?</span>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4 text-[#00e5a3]" />
           </button>
           
           <p className="text-center text-[11px] text-slate-400 mt-2">
@@ -1120,17 +1211,17 @@ export const CheckTab: React.FC = () => {
           <button
             type="button"
             onClick={() => handleStartAnalysis(selectedSource)}
-            className="w-full h-14 rounded-2xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10"
+            className="w-full h-14 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-extrabold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all shadow-md shadow-[#070e24]/15 border border-slate-800"
           >
             {selectedSource ? (
               <>
                 <span>Run Check for {getSourceDisplay(selectedSource).emoji} {selectedSource}</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 text-[#00e5a3]" />
               </>
             ) : (
               <>
                 <span>Run Pre-Purchase Check</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 text-[#00e5a3]" />
               </>
             )}
           </button>
@@ -1162,8 +1253,8 @@ export const CheckTab: React.FC = () => {
       <div className="space-y-6 pb-12 pt-4 animate-in fade-in duration-200">
         {/* Top minimal status bar */}
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#00e5a3] animate-pulse" />
             AI Offer Evaluation
           </span>
           <span className="text-xs text-slate-400 font-medium">
@@ -1178,9 +1269,9 @@ export const CheckTab: React.FC = () => {
               {/* Animated Radar/Pulse Graphic */}
               <div className="flex flex-col items-center justify-center py-4 space-y-3">
                 <div className="relative w-20 h-20 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-3xl bg-emerald-100/60 animate-ping opacity-75" />
-                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-slate-900 to-slate-800 text-white flex items-center justify-center text-2xl shadow-md">
-                    <ShieldCheck className="w-8 h-8 text-emerald-400 stroke-[2.2]" />
+                  <div className="absolute inset-0 rounded-3xl bg-teal-100/60 animate-ping opacity-60" />
+                  <div className="relative w-16 h-16 rounded-2xl bg-[#070e24] text-white flex items-center justify-center text-2xl shadow-md border border-slate-800">
+                    <ShieldCheck className="w-8 h-8 text-[#00e5a3] stroke-[2.2]" />
                   </div>
                 </div>
 
@@ -1197,7 +1288,7 @@ export const CheckTab: React.FC = () => {
               {/* Progress Bar */}
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full bg-emerald-600 rounded-full"
+                  className="h-full bg-[#00e5a3] rounded-full"
                   initial={{ width: '10%' }}
                   animate={{
                     width: `${((analysisStepIndex + 1) / ANALYSIS_STEPS.length) * 100}%`,
@@ -1313,15 +1404,15 @@ export const CheckTab: React.FC = () => {
               transition={{ type: 'spring', stiffness: 400, damping: 28 }}
               className="py-6 text-center space-y-5"
             >
-              <div className="w-20 h-20 rounded-3xl bg-emerald-100 text-emerald-700 border-2 border-emerald-200 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/10">
-                <CheckCircle2 className="w-10 h-10 text-emerald-600 stroke-[2.4]" />
+              <div className="w-20 h-20 rounded-3xl bg-[#070e24] text-[#00e5a3] border-2 border-slate-800 mx-auto flex items-center justify-center shadow-xl shadow-[#070e24]/15">
+                <CheckCircle2 className="w-10 h-10 text-[#00e5a3] stroke-[2.4]" />
               </div>
 
               <div className="space-y-1.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/80 inline-block">
+                <span className="text-xs font-bold uppercase tracking-wider text-teal-900 bg-teal-50 px-3 py-1 rounded-full border border-teal-200/80 inline-block">
                   Evaluation Finished
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#070e24]">
                   YOUR CHECK IS READY
                 </h2>
                 <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed pt-1">
@@ -1339,7 +1430,7 @@ export const CheckTab: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Safety Checklist:</span>
-                  <span className="font-bold text-emerald-700">Compiled</span>
+                  <span className="font-bold text-teal-700">Compiled</span>
                 </div>
               </div>
 
@@ -1348,10 +1439,10 @@ export const CheckTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleContinueToResults}
-                  className="w-full h-14 rounded-2xl bg-slate-900 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10"
+                  className="w-full h-14 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-extrabold text-sm flex items-center justify-center gap-2 active:scale-[0.985] transition-all shadow-md shadow-[#070e24]/15 border border-slate-800"
                 >
                   <span>View Your Check Results</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 text-[#00e5a3]" />
                 </button>
               </div>
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -12,6 +13,49 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: '25mb' }));
+
+// Ensure public directory is always served
+const publicDir = path.resolve(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+app.use(express.static(publicDir));
+
+// Endpoint to check if brand logo is already stored
+app.get('/api/brand-logo', (req, res) => {
+  const exactName = 'ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg';
+  const filePath = path.resolve(publicDir, exactName);
+  const fallbackPath = path.resolve(publicDir, 'check-logo.png');
+  if (fs.existsSync(filePath)) {
+    return res.json({ exists: true, path: `/${exactName}` });
+  } else if (fs.existsSync(fallbackPath)) {
+    return res.json({ exists: true, path: '/check-logo.png' });
+  }
+  return res.json({ exists: false });
+});
+
+// Endpoint to store and persist official brand logo directly into public directory
+app.post('/api/upload-brand-logo', (req, res) => {
+  try {
+    const { imageBase64, filename } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ error: 'Missing imageBase64 data' });
+    }
+    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    const exactName = 'ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg';
+    fs.writeFileSync(path.resolve(publicDir, exactName), buffer);
+    fs.writeFileSync(path.resolve(publicDir, 'check-logo.png'), buffer);
+    if (filename && filename !== exactName) {
+      fs.writeFileSync(path.resolve(publicDir, filename), buffer);
+    }
+    return res.json({ success: true, path: `/${exactName}` });
+  } catch (err: any) {
+    console.error('Error saving brand logo:', err);
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // Initialize GoogleGenAI SDK on the server with recommended User-Agent header
 const ai = new GoogleGenAI({
@@ -194,29 +238,49 @@ const ANALYSIS_SCHEMA = {
   ],
 };
 
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.slice(7);
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.slice(3);
+  }
+  if (cleaned.endsWith('```')) {
+    cleaned = cleaned.slice(0, -3);
+  }
+  return cleaned.trim();
+}
+
 async function executeGeminiAnalysis(parts: any[]): Promise<string> {
-  // Support primary models with fallbacks for high demand spikes
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  // Ordered by response speed and availability to prevent stalls and high-demand 503 bottlenecks
+  const modelsToTry = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3.5-flash',
+    'gemini-3.8-flash',
+  ];
   let lastError: any = null;
 
   for (const model of modelsToTry) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({
-          model,
-          contents: { parts },
-          config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
-            responseMimeType: 'application/json',
-            responseSchema: ANALYSIS_SCHEMA,
-          },
-        });
-        if (response.text) return response.text;
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Gemini attempt ${attempt + 1} (${model}) encountered issue:`, err?.message || err);
-        // Exponential backoff
-        await new Promise((res) => setTimeout(res, 1000 * (attempt + 1)));
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: { parts },
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: ANALYSIS_SCHEMA,
+        },
+      });
+      if (response.text) return response.text;
+    } catch (err: any) {
+      lastError = err;
+      const is503 = err?.status === 503 || err?.message?.includes('503') || err?.message?.includes('high demand');
+      console.warn(`Gemini (${model}) encountered issue (503=${is503}):`, err?.message?.slice(0, 120) || err);
+      // If 503 (high demand spike), instantly failover to next model without wasting time retrying overloaded model
+      if (!is503) {
+        await new Promise((res) => setTimeout(res, 400));
       }
     }
   }
@@ -293,10 +357,75 @@ Generate a polite, neutral verification question addressing the single most impo
 
     // Call Gemini with resilience
     const responseText = await executeGeminiAnalysis(parts);
-    const structuredResult = JSON.parse(responseText.trim());
+    const cleanedText = cleanJsonResponse(responseText);
+    const structuredResult = JSON.parse(cleanedText);
+
+    // Safeguard structured response collections
+    if (!Array.isArray(structuredResult.unverified_items)) {
+      structuredResult.unverified_items = [];
+    }
+    if (!Array.isArray(structuredResult.verification_checklist)) {
+      structuredResult.verification_checklist = [];
+    }
+
     return res.json(structuredResult);
   } catch (error: any) {
     console.error('Gemini Analysis Error:', error);
+
+    // If an uploaded image could not be decoded by the vision pipeline, gracefully return unreadable_screenshot
+    const errMsg = error?.message || String(error);
+    if (errMsg.includes('Unable to process input image') || errMsg.includes('INVALID_ARGUMENT')) {
+      return res.json({
+        unreadable_screenshot: true,
+        insufficient_information: false,
+        status: 'DONT_PAY_YET',
+        confidence: 'HIGH',
+        summary: 'The submitted image could not be clearly read or processed. Please upload a clear screenshot showing the offer, price, and seller details.',
+        price_findings: {
+          title: 'Price Not Legible',
+          statusText: 'Could not be read',
+          isPositive: false,
+          isWarning: true,
+          notes: ['Price information was unreadable from the submitted image.'],
+        },
+        seller_findings: {
+          title: 'Seller Details Missing',
+          statusText: 'Could not be read',
+          isPositive: false,
+          isWarning: true,
+          notes: ['Seller identity could not be verified from the image.'],
+        },
+        terms_findings: {
+          title: 'Terms Unclear',
+          statusText: 'Could not be read',
+          isPositive: false,
+          isWarning: true,
+          notes: ['Return policy and warranty terms were not legible.'],
+        },
+        red_flags: {
+          title: 'Unreadable Screenshot',
+          statusText: 'High Risk',
+          isPositive: false,
+          isWarning: true,
+          notes: ['The screenshot could not be parsed by the verification engine.'],
+        },
+        unverified_items: ['Product specifications', 'Actual price', 'Seller identity', 'Return window'],
+        next_steps: {
+          action: 'Upload a clear screenshot or paste text',
+          detail: 'Take a clear screenshot of the listing or paste the product text directly.',
+          tag: 'Verification Step',
+        },
+        seller_question: 'Could you please confirm the exact model, item condition, price, and return terms?',
+        verification_checklist: [
+          {
+            id: 'clear_photo',
+            label: 'Verify with clear listing details',
+            description: 'Upload a legible screenshot or paste the listing link directly.',
+            priority: 'urgent',
+          },
+        ],
+      });
+    }
 
     // Prompt 14 rule: "Do not invent an analysis when the AI call fails."
     return res.status(503).json({

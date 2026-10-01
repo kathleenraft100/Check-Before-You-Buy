@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckResultsView, ResultVerdict, StructuredAnalysisData } from '../CheckResultsView';
 import { SourceType } from './CheckTab';
+import { useBrandLogo } from '../../context/LogoContext';
 
 export interface HistoryItem {
   id: string;
@@ -36,6 +37,7 @@ interface HistoryTabProps {
 }
 
 export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => {
+  const { logoUrl, hasLogo } = useBrandLogo();
   // Load persistent history from localStorage with robust corruption and error handling
   const [items, setItems] = useState<HistoryItem[]>(() => {
     try {
@@ -293,8 +295,25 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
            “No checks yet. Your next purchase can start here.”
            --------------------------------------------------------------------- */
         <section className="py-12 px-4 text-center bg-white rounded-3xl border border-dashed border-slate-200 p-8 space-y-5 shadow-2xs">
-          <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 mx-auto flex items-center justify-center text-2xl shadow-xs">
-            <ShieldCheck className="w-8 h-8 text-emerald-600" />
+          <div className="w-16 h-16 rounded-3xl overflow-hidden mx-auto flex items-center justify-center shadow-xs bg-[#070e24] border border-slate-800 p-0.5">
+            <img
+              src={logoUrl || '/ai-creation-cmuoefa7204m00iu6p6skzg82-1790798010521.jpg'}
+              alt="CHECK Before You Buy"
+              onError={(e) => {
+                const target = e.currentTarget;
+                if (!target.src.includes('check-logo.png') && !target.src.startsWith('data:')) {
+                  target.src = '/check-logo.png';
+                } else {
+                  target.style.display = 'none';
+                  const fb = target.nextElementSibling as HTMLElement;
+                  if (fb) fb.style.display = 'flex';
+                }
+              }}
+              className="w-full h-full object-contain rounded-2xl"
+            />
+            <div style={{ display: 'none' }} className="w-full h-full items-center justify-center bg-[#070e24] text-[#00e5a3]">
+              <ShieldCheck className="w-8 h-8 stroke-[2.2]" />
+            </div>
           </div>
 
           <div className="space-y-1.5 max-w-xs mx-auto">
@@ -310,10 +329,10 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ onNavigateToCheck }) => 
             <button
               type="button"
               onClick={onNavigateToCheck}
-              className="w-full h-12 rounded-2xl bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.985] transition-all shadow-md shadow-slate-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+              className="w-full h-12 rounded-2xl bg-[#070e24] hover:bg-[#0c183a] text-white font-bold text-xs flex items-center justify-center gap-2 active:scale-[0.985] transition-all shadow-md shadow-[#070e24]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#070e24]"
             >
               <span>Start Your First Check</span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 text-[#00e5a3]" />
             </button>
           </div>
         </section>

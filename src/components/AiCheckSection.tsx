@@ -16,28 +16,28 @@ interface AiCheckSectionProps {
 
 export const AiCheckSection: React.FC<AiCheckSectionProps> = ({ inputReference }) => {
   return (
-    <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 rounded-3xl p-5 sm:p-6 text-white border border-indigo-500/30 shadow-[0_8px_30px_rgba(30,27,75,0.25)] space-y-5">
+    <section className="bg-gradient-to-br from-[#070e24] via-[#0b1430] to-[#070e24] rounded-3xl p-5 sm:p-6 text-white border border-slate-800 shadow-[0_8px_30px_rgba(7,14,36,0.3)] space-y-5">
       {/* Header with Exact Label as Specified in PROMPT 10 */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-black tracking-wider uppercase border border-indigo-400/30">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white text-xs font-black tracking-wider uppercase border border-white/20">
             <span>🤖 AI CHECK</span>
           </div>
           <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white pt-1">
             AI Discovery Warning
           </h2>
         </div>
-        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 flex items-center justify-center shrink-0 text-xl font-bold">
+        <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/15 text-white flex items-center justify-center shrink-0 text-xl font-bold">
           🤖
         </div>
       </div>
 
       {/* Mandatory Prominent Callout Text */}
-      <div className="p-4 rounded-2xl bg-indigo-900/40 border border-indigo-400/25 space-y-1">
-        <p className="text-sm font-bold text-indigo-100 leading-snug">
+      <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1">
+        <p className="text-sm font-bold text-white leading-snug">
           “An AI recommendation is not proof that the seller or product is trustworthy.”
         </p>
-        <p className="text-xs text-indigo-300/80 leading-relaxed pt-1">
+        <p className="text-xs text-slate-300 leading-relaxed pt-1">
           In 2026, AI chatbots and synthetic search assistants synthesize web answers that may cite affiliate-driven reviews, SEO-optimized dropshippers, or non-existent warranties.
         </p>
       </div>
@@ -48,29 +48,29 @@ export const AiCheckSection: React.FC<AiCheckSectionProps> = ({ inputReference }
         <div className="bg-slate-900/80 rounded-2xl p-4 border border-slate-800 space-y-3 flex flex-col justify-between">
           <div className="space-y-2.5">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+              <div className="w-6 h-6 rounded-lg bg-[#00e5a3]/20 text-[#00e5a3] flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
               </div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#00e5a3]">
                 What we can verify
               </h3>
             </div>
 
             <ul className="space-y-2 text-xs text-slate-300 leading-relaxed">
               <li className="flex items-start gap-2">
-                <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                <span className="text-[#00e5a3] font-bold shrink-0">✓</span>
                 <span>
                   <strong>Disclosed Terms & Fine Print:</strong> Return windows, restocking charges, cancellation rules, and recurring billing clauses explicitly stated in the submitted offer.
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                <span className="text-[#00e5a3] font-bold shrink-0">✓</span>
                 <span>
                   <strong>Price Signal Consistency:</strong> Extreme markdown claims, artificial anchor prices, and hidden checkout add-ons apparent in the provided material.
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                <span className="text-[#00e5a3] font-bold shrink-0">✓</span>
                 <span>
                   <strong>High-Pressure Tactics:</strong> Countdown timers, fake stock urgency, and generic turnkey template patterns visible in the offer.
                 </span>

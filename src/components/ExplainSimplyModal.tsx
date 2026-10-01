@@ -372,14 +372,14 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
         {/* Header Bar */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 flex items-center justify-center text-lg font-bold shadow-2xs">
+            <div className="w-10 h-10 rounded-2xl bg-[#070e24] text-[#00e5a3] border border-slate-800 flex items-center justify-center text-lg font-bold shadow-xs">
               💬
             </div>
             <div>
-              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">
+              <span className="text-[11px] font-bold text-[#070e24] bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200/80 uppercase tracking-wider block">
                 Plain-English Translation
               </span>
-              <h2 className="text-lg font-black text-slate-900 tracking-tight leading-tight">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
                 What does this really mean?
               </h2>
             </div>
@@ -407,7 +407,7 @@ export const ExplainSimplyModal: React.FC<ExplainSimplyModalProps> = ({
                 onClick={() => setSelectedTopic(key)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
                   isSelected
-                    ? 'bg-slate-900 text-white shadow-xs scale-[1.02]'
+                    ? 'bg-[#070e24] text-white shadow-xs border border-slate-800 ring-2 ring-[#00e5a3]/30 scale-[1.02]'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
